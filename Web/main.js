@@ -20,7 +20,8 @@
     sections: null,
     query: '',
     searchResults: null,
-    loadingSearch: false
+    loadingSearch: false,
+    loadError: ''
   };
 
   function getToken() {
@@ -37,7 +38,7 @@
     style.id = 'js-seerr-styles';
     style.textContent = [
       ':root { --js-seerr-accent: var(--theme-primary-color, #00a4dc); --js-seerr-surface: rgba(255,255,255,.04); --js-seerr-surface-strong: rgba(255,255,255,.08); --js-seerr-border: rgba(255,255,255,.08); }',
-      '#js-seerr-discover.page { position: absolute; inset: 0; z-index: 5; overflow: auto; padding: 1.5rem 1.5rem 2rem; background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.02) 14rem), var(--theme-body-background, #101010); color: var(--theme-text-color, #fff); }',
+      '#js-seerr-discover.page { position: relative; width: 100%; min-height: 100%; z-index: 5; overflow: visible; padding: 1.5rem 1.5rem 2rem; background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.02) 14rem), var(--theme-body-background, #101010); color: var(--theme-text-color, #fff); }',
       '#js-seerr-discover .content-primary { max-width: 1320px; margin: 0 auto; padding: 0; }',
       '.js-seerr-hero { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }',
       '.js-seerr-eyebrow { font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; color:var(--js-seerr-accent); margin-bottom:.35rem; }',
@@ -738,6 +739,7 @@
   async function loadDiscoverSections() {
     if (discoverPageLoading) return;
     discoverPageLoading = true;
+    discoverState.loadError = '';
     renderDiscoverPage();
 
     const [trending, movies, tv, upcomingMovies, upcomingTv] = await Promise.all([
@@ -755,6 +757,9 @@
       upcomingMovies: upcomingMovies?.results || [],
       upcomingTv: upcomingTv?.results || []
     };
+    if (!trending && !movies && !tv && !upcomingMovies && !upcomingTv) {
+      discoverState.loadError = 'Could not load Discover content from Seerr. You can still search below.';
+    }
     discoverPageLoading = false;
     renderDiscoverPage();
   }
@@ -881,7 +886,16 @@
       return '<div class="js-seerr-status">Loading Discover...</div>';
     }
 
+    if (discoverState.loadError) {
+      return '<div class="js-seerr-status">' + escHtml(discoverState.loadError) + '</div>';
+    }
+
     const sections = discoverState.sections || {};
+    const hasAnyItems = Object.values(sections).some(items => Array.isArray(items) && items.length);
+    if (!hasAnyItems) {
+      return '<div class="js-seerr-status">No Discover rows are available right now. Use search above to request something directly.</div>';
+    }
+
     return [
       renderDiscoverSection('Trending', sections.trending),
       renderDiscoverSection('Popular Movies', sections.movies),

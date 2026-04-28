@@ -625,6 +625,26 @@
     }) || null;
   }
 
+  function bindBrowseAnchorButtons() {
+    const container = getBrowseButtonContainer();
+    if (!container || container.dataset.jsSeerrBound === 'true') return;
+
+    container.dataset.jsSeerrBound = 'true';
+    Array.from(container.children).forEach(button => {
+      const text = (button.textContent || '').trim();
+      if (!/^(Home|Favorites|Favourites)$/i.test(text)) return;
+
+      button.addEventListener('click', () => {
+        if (!isDiscoverRoute()) return;
+        setTimeout(() => {
+          if (isDiscoverRoute()) {
+            window.location.hash = getRouteHrefWithoutDiscover();
+          }
+        }, 0);
+      });
+    });
+  }
+
   function getDiscoverHost() {
     return document.querySelector('.skinBody .mainAnimatedPages')
       || document.querySelector('.mainAnimatedPages')
@@ -733,6 +753,7 @@
   function handleRouteChange() {
     injectDiscoverMenuLink();
     injectBrowseDiscoverButton();
+    bindBrowseAnchorButtons();
     updateDiscoverMenuState();
     ensureDiscoverPage();
   }

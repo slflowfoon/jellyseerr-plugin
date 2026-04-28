@@ -126,6 +126,10 @@
     }, 5200);
   }
 
+  function showTestToast() {
+    showToast('JellySeerr Test', 'This is a test notification from the JellySeerr plugin.');
+  }
+
   async function apiFetch(path, opts = {}) {
     const token = getToken();
     const headers = { 'X-MediaBrowser-Token': token, ...opts.headers };
@@ -435,10 +439,11 @@
     const form = view.querySelector('#jellySeerrConfigForm');
     const saveBtn = view.querySelector('#btnSave');
     const testBtn = view.querySelector('#btnTest');
+    const testToastBtn = view.querySelector('#btnTestToast');
     const urlInput = view.querySelector('#txtSeerrUrl');
     const keyInput = view.querySelector('#txtSeerrApiKey');
 
-    if (!form || !saveBtn || !testBtn || !urlInput || !keyInput) return;
+    if (!form || !saveBtn || !testBtn || !testToastBtn || !urlInput || !keyInput) return;
 
     view.dataset.jsConfigBound = 'true';
 
@@ -479,6 +484,11 @@
       } finally {
         testBtn.disabled = false;
       }
+    });
+
+    testToastBtn.addEventListener('click', () => {
+      showTestToast();
+      setConfigStatus(view, 'Notification test shown', true);
     });
 
     loadConfigPage(view);

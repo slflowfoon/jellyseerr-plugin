@@ -630,6 +630,25 @@
       || document.querySelector('.skinBody');
   }
 
+  function setDiscoverHostVisibility(host, active) {
+    Array.from(host.children).forEach(child => {
+      if (child.id === 'js-seerr-discover') {
+        child.style.display = active ? '' : 'none';
+        return;
+      }
+
+      if (active) {
+        if (!child.hasAttribute('data-js-seerr-prev-display')) {
+          child.setAttribute('data-js-seerr-prev-display', child.style.display || '');
+        }
+        child.style.display = 'none';
+      } else if (child.hasAttribute('data-js-seerr-prev-display')) {
+        child.style.display = child.getAttribute('data-js-seerr-prev-display') || '';
+        child.removeAttribute('data-js-seerr-prev-display');
+      }
+    });
+  }
+
   function injectDiscoverMenuLink() {
     const drawer = getDrawerContainer();
     if (!drawer || document.getElementById('js-seerr-nav')) return;
@@ -759,7 +778,12 @@
 
   function ensureDiscoverPage() {
     if (!isDiscoverRoute()) {
-      document.getElementById('js-seerr-discover')?.remove();
+      const existing = document.getElementById('js-seerr-discover');
+      const host = existing?.parentElement;
+      if (host) {
+        setDiscoverHostVisibility(host, false);
+      }
+      existing?.remove();
       discoverMounted = false;
       return;
     }
@@ -780,6 +804,8 @@
     } else if (page.parentElement !== host) {
       host.appendChild(page);
     }
+
+    setDiscoverHostVisibility(host, true);
 
     if (!discoverMounted) {
       renderDiscoverPage();

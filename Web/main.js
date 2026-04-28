@@ -1,6 +1,8 @@
 (function () {
   'use strict';
 
+  const GUID = '3b4f8e2a-7c91-4d05-b3e6-1a2f9c847d30';
+
   // All Seerr calls are proxied through Jellyfin's own API to avoid CORS.
   const API = '/plugins/JellySeerr';
 
@@ -82,6 +84,87 @@
       default:
         return { label: '+ Request', color: '#00a4dc', disabled: false };
     }
+  }
+
+  // ── Config page ──────────────────────────────────────────────────────────
+
+  function setConfigStatus(view, msg, ok) {
+    const el = view.querySelector('#statusMsg');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = ok ? '#4caf50' : '#e53935';
+  }
+
+  async function loadConfigPage(view) {
+    try {
+      const cfg = await window.ApiClient.getPluginConfiguration(GUID);
+      const urlInput = view.querySelector('#txtSeerrUrl');
+      const keyInput = view.querySelector('#txtSeerrApiKey');
+      if (urlInput) urlInput.value = cfg.SeerrUrl || '';
+      if (keyInput) keyInput.value = cfg.SeerrApiKey || '';
+      setConfigStatus(view, '', true);
+    } catch {
+      setConfigStatus(view, 'Could not load plugin settings', false);
+    }
+  }
+
+  function bindConfigPage(view) {
+    if (!view || view.dataset.jsConfigBound === 'true') return;
+
+    const form = view.querySelector('#jellySeerrConfigForm');
+    const saveBtn = view.querySelector('#btnSave');
+    const testBtn = view.querySelector('#btnTest');
+    const urlInput = view.querySelector('#txtSeerrUrl');
+    const keyInput = view.querySelector('#txtSeerrApiKey');
+
+    if (!form || !saveBtn || !testBtn || !urlInput || !keyInput) return;
+
+    view.dataset.jsConfigBound = 'true';
+
+    form.addEventListener('submit', async evt => {
+      evt.preventDefault();
+      saveBtn.disabled = true;
+      setConfigStatus(view, 'Saving...', true);
+
+      try {
+        const cfg = await window.ApiClient.getPluginConfiguration(GUID);
+        cfg.SeerrUrl = urlInput.value.trim();
+        cfg.SeerrApiKey = keyInput.value.trim();
+        await window.ApiClient.updatePluginConfiguration(GUID, cfg);
+        setConfigStatus(view, 'Saved', true);
+      } catch {
+        setConfigStatus(view, 'Save failed', false);
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    testBtn.addEventListener('click', async () => {
+      testBtn.disabled = true;
+      setConfigStatus(view, 'Testing...', true);
+
+      try {
+        const resp = await fetch(API + '/Status/movie/550', {
+          headers: { 'X-MediaBrowser-Token': window.ApiClient.accessToken() }
+        });
+
+        if (resp.ok) {
+          setConfigStatus(view, 'Connection OK', true);
+        } else {
+          setConfigStatus(view, 'Error ' + resp.status, false);
+        }
+      } catch {
+        setConfigStatus(view, 'Could not reach Seerr', false);
+      } finally {
+        testBtn.disabled = false;
+      }
+    });
+
+    loadConfigPage(view);
+  }
+
+  function initConfigPage() {
+    bindConfigPage(document.getElementById('jellySeerrConfigPage'));
   }
 
   // ── Detail page button ───────────────────────────────────────────────────
@@ -330,6 +413,7 @@
   const observer = new MutationObserver(() => {
     const href = window.location.href;
 
+    initConfigPage();
     injectFab();
 
     if (href !== lastHref) {
@@ -358,6 +442,13 @@
   function init() {
     if (!document.body) { setTimeout(init, 100); return; }
     observer.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('viewshow', event => {
+      if (event.target && event.target.id === 'jellySeerrConfigPage') {
+        bindConfigPage(event.target);
+        loadConfigPage(event.target);
+      }
+    });
+    initConfigPage();
     injectFab();
     if (isDetailPage()) setTimeout(injectDetailButton, 800);
   }

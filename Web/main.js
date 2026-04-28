@@ -62,7 +62,8 @@
       '.js-seerr-toast { min-width:280px; max-width:360px; background:rgba(24,24,24,.96); color:#fff; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.35); border:1px solid var(--js-seerr-border); padding:.95rem 1rem; transform:translateY(-6px); opacity:0; animation: jsSeerrToastIn .2s ease forwards; }',
       '.js-seerr-toastTitle { font-size:.9rem; color:var(--js-seerr-accent); margin-bottom:.25rem; }',
       '.js-seerr-toastBody { font-size:.98rem; line-height:1.35; }',
-      '#js-seerr-browse-btn { white-space:nowrap; }',
+      '#js-seerr-browse-btn { white-space:nowrap; display:inline-flex; align-items:center; gap:.55rem; }',
+      '#js-seerr-browse-btn .material-icons { font-size:1.2em; }',
       '#js-seerr-nav { display:flex; align-items:center; }',
       '#js-seerr-nav .navMenuOptionText { margin-left:0 !important; }',
       '#js-seerr-nav .navMenuOptionIcon { margin-right:1.15rem; }',
@@ -660,7 +661,7 @@
     button.removeAttribute('aria-current');
     button.title = 'Discover';
     button.setAttribute('aria-label', 'Discover');
-    button.textContent = 'Discover';
+    button.innerHTML = '<span class="material-icons" aria-hidden="true">explore</span><span>Discover</span>';
     button.onclick = null;
     button.classList.remove('button-submit');
     button.classList.remove('selected');

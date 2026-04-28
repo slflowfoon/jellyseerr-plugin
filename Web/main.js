@@ -540,6 +540,12 @@
 
     const mediaType = item.Type === 'Series' ? 'tv' : 'movie';
     const tmdbId = item.ProviderIds.Tmdb;
+    const data = await seerrStatus(mediaType, tmdbId);
+    const info = statusInfo(data?.mediaInfo?.status, mediaType);
+
+    if (data?.mediaInfo?.status === Status.AVAILABLE) {
+      return;
+    }
 
     const btn = document.createElement('button');
     btn.id = 'js-request-btn';
@@ -548,8 +554,6 @@
     btn.style.cssText = btnStyle('#555');
     container.appendChild(btn);
 
-    const data = await seerrStatus(mediaType, tmdbId);
-    const info = statusInfo(data?.mediaInfo?.status, mediaType);
     btn.textContent = info.label;
     btn.style.cssText = btnStyle(info.color);
     btn.disabled = info.disabled;

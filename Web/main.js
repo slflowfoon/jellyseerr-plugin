@@ -5,6 +5,8 @@
   const API = '/plugins/JellySeerr';
   const DISCOVER_ROUTE = '#/home.html?jellyseerr=discover';
   const Status = { UNKNOWN: 1, PENDING: 2, PROCESSING: 3, PARTIAL: 4, AVAILABLE: 5 };
+  const TRACKED_REQUESTS_KEY = 'jellyseerr_tracked_requests';
+  const REQUEST_POLL_MS = 120000;
 
   let lastHref = '';
   let lastDetailId = null;
@@ -12,6 +14,7 @@
   let discoverSearchTimer = null;
   let discoverPageLoading = false;
   let discoverRequestInFlight = false;
+  let requestPollTimer = null;
   const discoverState = {
     sections: null,
     query: '',
@@ -24,6 +27,96 @@
       const creds = JSON.parse(localStorage.getItem('jellyfin_credentials') || '{}');
       return creds.Servers?.[0]?.AccessToken || '';
     } catch { return ''; }
+  }
+
+  function ensurePluginStyles() {
+    if (document.getElementById('js-seerr-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'js-seerr-styles';
+    style.textContent = [
+      ':root { --js-seerr-accent: var(--theme-primary-color, #00a4dc); --js-seerr-surface: rgba(255,255,255,.04); --js-seerr-surface-strong: rgba(255,255,255,.08); --js-seerr-border: rgba(255,255,255,.08); }',
+      '#js-seerr-discover.page { position: fixed; inset: 0; z-index: 9998; overflow: auto; padding: 4.5rem 1.5rem 2rem; background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.02) 14rem), var(--theme-body-background, #101010); color: var(--theme-text-color, #fff); }',
+      '#js-seerr-discover .content-primary { max-width: 1320px; margin: 0 auto; padding: 0; }',
+      '.js-seerr-hero { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }',
+      '.js-seerr-eyebrow { font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; color:var(--js-seerr-accent); margin-bottom:.35rem; }',
+      '.js-seerr-title { margin:0; font-size:2.4rem; line-height:1.05; font-weight:700; }',
+      '.js-seerr-actions { display:flex; gap:.75rem; align-items:center; flex-wrap:wrap; }',
+      '.js-seerr-pill { border:none; border-radius:999px; padding:.8rem 1rem; background:var(--js-seerr-surface-strong); color:inherit; cursor:pointer; font:inherit; }',
+      '.js-seerr-searchbar { display:flex; align-items:center; gap:.75rem; margin:1rem 0 1.5rem; }',
+      '.js-seerr-searchbar input { width:100%; padding:1rem 1.1rem; border:none; border-radius:14px; background:var(--js-seerr-surface); box-shadow: inset 0 0 0 1px var(--js-seerr-border); color:inherit; font:inherit; }',
+      '.js-seerr-section { margin-top:1.8rem; }',
+      '.js-seerr-sectionHeader { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.8rem; }',
+      '.js-seerr-sectionTitle { margin:0; font-size:1.4rem; font-weight:700; }',
+      '.js-seerr-row { display:flex; gap:1rem; overflow-x:auto; padding-bottom:.5rem; }',
+      '.js-seerr-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; }',
+      '.js-seerr-card { display:flex; flex-direction:column; gap:.65rem; min-width:180px; }',
+      '.js-seerr-poster { width:100%; aspect-ratio:2/3; object-fit:cover; border-radius:12px; background:var(--js-seerr-surface); box-shadow: 0 0 0 1px var(--js-seerr-border); }',
+      '.js-seerr-cardTitle { font-size:.98rem; font-weight:600; line-height:1.3; }',
+      '.js-seerr-cardMeta { font-size:.78rem; color:var(--theme-secondary-text-color, #aaa); }',
+      '.js-seerr-requestButton { margin-top:.15rem; border:none; border-radius:10px; padding:.75rem .9rem; color:#fff; font:inherit; font-weight:600; cursor:pointer; }',
+      '.js-seerr-requestButton[disabled] { opacity:.65; cursor:default; }',
+      '.js-seerr-status { padding:2rem 0; color:var(--theme-secondary-text-color, #aaa); }',
+      '.js-seerr-toastHost { position:fixed; top:5.2rem; right:1rem; z-index:100002; display:flex; flex-direction:column; gap:.75rem; pointer-events:none; }',
+      '.js-seerr-toast { min-width:280px; max-width:360px; background:rgba(24,24,24,.96); color:#fff; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.35); border:1px solid var(--js-seerr-border); padding:.95rem 1rem; transform:translateY(-6px); opacity:0; animation: jsSeerrToastIn .2s ease forwards; }',
+      '.js-seerr-toastTitle { font-size:.9rem; color:var(--js-seerr-accent); margin-bottom:.25rem; }',
+      '.js-seerr-toastBody { font-size:.98rem; line-height:1.35; }',
+      '@keyframes jsSeerrToastIn { to { transform:translateY(0); opacity:1; } }',
+      '@media (max-width: 900px) { #js-seerr-discover.page { padding: 4.25rem 1rem 1.5rem; } .js-seerr-title { font-size:2rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } }'
+    ].join('\n');
+    document.head.appendChild(style);
+  }
+
+  function loadTrackedRequests() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(TRACKED_REQUESTS_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveTrackedRequests(items) {
+    localStorage.setItem(TRACKED_REQUESTS_KEY, JSON.stringify(items));
+  }
+
+  function trackRequestedItem(mediaType, mediaId, title) {
+    const tracked = loadTrackedRequests().filter(item => !(item.mediaType === mediaType && item.mediaId === mediaId));
+    tracked.push({
+      mediaType: mediaType,
+      mediaId: mediaId,
+      title: title || 'Requested item',
+      notified: false,
+      trackedAt: Date.now()
+    });
+    saveTrackedRequests(tracked);
+  }
+
+  function ensureToastHost() {
+    let host = document.getElementById('js-seerr-toast-host');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'js-seerr-toast-host';
+      host.className = 'js-seerr-toastHost';
+      document.body.appendChild(host);
+    }
+    return host;
+  }
+
+  function showToast(title, body) {
+    const host = ensureToastHost();
+    const toast = document.createElement('div');
+    toast.className = 'js-seerr-toast';
+    toast.innerHTML = [
+      '<div class="js-seerr-toastTitle">' + escHtml(title) + '</div>',
+      '<div class="js-seerr-toastBody">' + escHtml(body) + '</div>'
+    ].join('');
+    host.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-6px)';
+      setTimeout(() => toast.remove(), 220);
+    }, 5200);
   }
 
   async function apiFetch(path, opts = {}) {
@@ -274,6 +367,32 @@
     return Boolean(await seerrRequest(mediaType, mediaId, { requestId: requestId }));
   }
 
+  async function pollTrackedRequests() {
+    const tracked = loadTrackedRequests();
+    if (!tracked.length) return;
+
+    const nextTracked = [];
+    for (const item of tracked) {
+      const data = await seerrStatus(item.mediaType, item.mediaId);
+      const status = data?.mediaInfo?.status;
+
+      if (status === Status.AVAILABLE) {
+        showToast('Available in Jellyfin', item.title + ' is now in your library.');
+        continue;
+      }
+
+      nextTracked.push(item);
+    }
+
+    saveTrackedRequests(nextTracked);
+  }
+
+  function startRequestPolling() {
+    clearInterval(requestPollTimer);
+    pollTrackedRequests();
+    requestPollTimer = setInterval(pollTrackedRequests, REQUEST_POLL_MS);
+  }
+
   function setConfigStatus(view, msg, ok) {
     const el = view.querySelector('#statusMsg');
     if (!el) return;
@@ -445,6 +564,9 @@
         btn.textContent = done.label;
         btn.style.cssText = btnStyle(done.color);
         btn.disabled = done.disabled;
+        if (refreshed?.mediaInfo?.status !== Status.AVAILABLE) {
+          trackRequestedItem(mediaType, Number(tmdbId), item.Name || 'Requested item');
+        }
       });
     }
   }
@@ -542,11 +664,7 @@
     if (!page) {
       page = document.createElement('div');
       page.id = 'js-seerr-discover';
-      page.style.cssText = [
-        'position:fixed', 'inset:0', 'z-index:9998',
-        'background:radial-gradient(circle at top, rgba(0,164,220,.16), transparent 28%), linear-gradient(180deg, rgba(12,12,12,.98), rgba(8,8,8,.98))',
-        'overflow:auto', 'padding:72px 20px 28px', 'color:#fff'
-      ].join(';');
+      page.className = 'page type-interior';
       document.body.appendChild(page);
     }
 
@@ -561,11 +679,11 @@
 
     const cards = items.map(item => renderDiscoverCard(item)).join('');
     return [
-      '<section style="margin-top:28px">',
-      '  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">',
-      '    <h2 style="margin:0;font-size:22px;font-weight:700">' + escHtml(title) + '</h2>',
+      '<section class="js-seerr-section">',
+      '  <div class="js-seerr-sectionHeader">',
+      '    <h2 class="js-seerr-sectionTitle">' + escHtml(title) + '</h2>',
       '  </div>',
-      '  <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:6px">' + cards + '</div>',
+      '  <div class="js-seerr-row">' + cards + '</div>',
       '</section>'
     ].join('');
   }
@@ -578,14 +696,14 @@
     const info = statusInfo(item?.mediaInfo?.status, mediaType);
 
     return [
-      '<article style="flex:0 0 180px;display:flex;flex-direction:column;gap:10px">',
+      '<article class="js-seerr-card">',
       poster
-        ? '<img src="' + poster + '" alt="' + escHtml(title) + '" style="width:180px;height:270px;object-fit:cover;border-radius:12px;background:#222" />'
-        : '<div style="width:180px;height:270px;border-radius:12px;background:#222"></div>',
-      '<div style="display:flex;flex-direction:column;gap:6px">',
-      '  <div style="font-weight:700;font-size:15px;line-height:1.3">' + escHtml(title) + '</div>',
-      '  <div style="font-size:12px;color:#aaa">' + escHtml((year ? year + ' · ' : '') + (mediaType === 'tv' ? 'TV Show' : 'Movie')) + '</div>',
-      '  <button type="button" data-request-media="' + escHtml(mediaType) + '" data-request-id="' + item.id + '" style="margin-top:2px;padding:9px 12px;border:none;border-radius:8px;background:' + info.color + ';color:#fff;font-weight:600;cursor:pointer"' + (info.disabled ? ' disabled' : '') + '>',
+        ? '<img class="js-seerr-poster" src="' + poster + '" alt="' + escHtml(title) + '" />'
+        : '<div class="js-seerr-poster"></div>',
+      '<div>',
+      '  <div class="js-seerr-cardTitle">' + escHtml(title) + '</div>',
+      '  <div class="js-seerr-cardMeta">' + escHtml((year ? year + ' · ' : '') + (mediaType === 'tv' ? 'TV Show' : 'Movie')) + '</div>',
+      '  <button class="js-seerr-requestButton" type="button" data-request-title="' + escHtml(title) + '" data-request-media="' + escHtml(mediaType) + '" data-request-id="' + item.id + '" style="background:' + info.color + '"' + (info.disabled ? ' disabled' : '') + '>',
       escHtml(info.label),
       '  </button>',
       '</div>',
@@ -595,16 +713,16 @@
 
   function renderSearchResults(items) {
     if (discoverState.loadingSearch) {
-      return '<div style="padding:32px 0;color:#aaa">Searching Seerr...</div>';
+      return '<div class="js-seerr-status">Searching Seerr...</div>';
     }
 
     if (!items?.length) {
-      return '<div style="padding:32px 0;color:#aaa">No results found.</div>';
+      return '<div class="js-seerr-status">No results found.</div>';
     }
 
     return [
-      '<section style="margin-top:24px">',
-      '  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px">',
+      '<section class="js-seerr-section">',
+      '  <div class="js-seerr-grid">',
       items.map(item => renderDiscoverCard(item)).join(''),
       '  </div>',
       '</section>'
@@ -617,7 +735,7 @@
     }
 
     if (discoverPageLoading && !discoverState.sections) {
-      return '<div style="padding:32px 0;color:#aaa">Loading Discover...</div>';
+      return '<div class="js-seerr-status">Loading Discover...</div>';
     }
 
     const sections = discoverState.sections || {};
@@ -668,6 +786,7 @@
         discoverRequestInFlight = true;
         const mediaType = button.getAttribute('data-request-media');
         const mediaId = Number(button.getAttribute('data-request-id'));
+        const title = button.getAttribute('data-request-title') || 'Requested item';
         const data = await seerrStatus(mediaType, mediaId);
 
         if (!data) {
@@ -680,6 +799,7 @@
 
         const result = await submitRequest(button, mediaType, mediaId, data);
         if (result) {
+          trackRequestedItem(mediaType, mediaId, title);
           if (discoverState.query.trim()) {
             await loadDiscoverSearch();
           } else {
@@ -702,19 +822,19 @@
     if (!page) return;
 
     page.innerHTML = [
-      '<div style="width:min(1280px, calc(100% - 12px));margin:0 auto 0;display:flex;flex-direction:column;gap:10px">',
-      '  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">',
+      '<div class="content-primary">',
+      '  <div class="js-seerr-hero">',
       '    <div>',
-      '      <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#7bd6f2">JellySeerr</div>',
-      '      <h1 style="margin:4px 0 0;font-size:38px;line-height:1.05">Discover</h1>',
+      '      <div class="js-seerr-eyebrow">JellySeerr</div>',
+      '      <h1 class="js-seerr-title">Discover</h1>',
       '    </div>',
-      '    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">',
-      '      <button id="js-seerr-discover-refresh" type="button" style="padding:10px 14px;border:none;border-radius:999px;background:#1f2b32;color:#fff;cursor:pointer">Refresh</button>',
-      '      <button id="js-seerr-discover-close" type="button" style="padding:10px 14px;border:none;border-radius:999px;background:#333;color:#fff;cursor:pointer">Close</button>',
+      '    <div class="js-seerr-actions">',
+      '      <button id="js-seerr-discover-refresh" class="js-seerr-pill" type="button">Refresh</button>',
+      '      <button id="js-seerr-discover-close" class="js-seerr-pill" type="button">Close</button>',
       '    </div>',
       '  </div>',
-      '  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px">',
-      '    <input id="js-seerr-discover-search" type="search" placeholder="Search Seerr for movies and TV shows..." autocomplete="off" style="flex:1;min-width:260px;padding:14px 16px;border:none;border-radius:14px;background:#1a1a1a;color:#fff;font-size:15px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)" />',
+      '  <div class="js-seerr-searchbar">',
+      '    <input id="js-seerr-discover-search" type="search" placeholder="Search Seerr for movies and TV shows..." autocomplete="off" />',
       '  </div>',
       renderDiscoverBody(),
       '</div>'
@@ -756,6 +876,7 @@
       return;
     }
 
+    ensurePluginStyles();
     observer.observe(document.body, { childList: true, subtree: true });
     document.addEventListener('viewshow', event => {
       if (event.target && event.target.id === 'jellySeerrConfigPage') {
@@ -768,6 +889,7 @@
     injectDiscoverMenuLink();
     updateDiscoverMenuState();
     ensureDiscoverPage();
+    startRequestPolling();
     if (isDetailPage()) setTimeout(injectDetailButton, 800);
   }
 

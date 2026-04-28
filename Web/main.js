@@ -63,6 +63,7 @@
       '.js-seerr-toastTitle { font-size:.9rem; color:var(--js-seerr-accent); margin-bottom:.25rem; }',
       '.js-seerr-toastBody { font-size:.98rem; line-height:1.35; }',
       '#js-seerr-header-btn { display:inline-flex; align-items:center; justify-content:center; }',
+      '#js-seerr-nav { display:flex; align-items:center; }',
       '@keyframes jsSeerrToastIn { to { transform:translateY(0); opacity:1; } }',
       '@media (max-width: 900px) { #js-seerr-discover.page { padding: 4.25rem 1rem 1.5rem; } .js-seerr-title { font-size:2rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } }'
     ].join('\n');
@@ -590,7 +591,9 @@
 
   function getHeaderSearchButton() {
     return document.querySelector('button[title="Search"]')
-      || document.querySelector('.headerRight button[is="paper-icon-button-light"]')
+      || document.querySelector('button[aria-label="Search"]')
+      || document.querySelector('.headerButton.headerButton-search')
+      || document.querySelector('.headerRight button[title="Search"]')
       || document.querySelector('.headerRight .btnSearch');
   }
 
@@ -602,7 +605,6 @@
     link.id = 'js-seerr-nav';
     link.href = DISCOVER_ROUTE;
     link.className = 'navMenuOption lnkJellySeerrDiscover';
-    link.style.cssText = 'display:flex;align-items:center;gap:1em;';
     link.innerHTML = [
       '<span class="material-icons navMenuOptionIcon" aria-hidden="true">explore</span>',
       '<span class="navMenuOptionText">Discover</span>'
@@ -624,15 +626,15 @@
     const searchBtn = getHeaderSearchButton();
     if (!searchBtn || !searchBtn.parentElement) return;
 
-    const button = document.createElement('button');
+    const button = searchBtn.cloneNode(true);
     button.id = 'js-seerr-header-btn';
-    button.type = 'button';
     button.title = 'Discover';
     button.setAttribute('aria-label', 'Discover');
-    button.className = searchBtn.className;
-    button.innerHTML = searchBtn.innerHTML.includes('search')
-      ? '<span class="material-icons" aria-hidden="true">explore</span>'
-      : '<span class="material-icons" aria-hidden="true">explore</span>';
+    button.innerHTML = button.innerHTML.replace(/search/gi, 'explore');
+    if (!/explore/i.test(button.innerHTML)) {
+      button.innerHTML = '<span class="material-icons" aria-hidden="true">explore</span>';
+    }
+    button.onclick = null;
     button.addEventListener('click', () => {
       window.location.hash = DISCOVER_ROUTE;
     });

@@ -16,6 +16,8 @@
   let discoverRequestInFlight = false;
   let requestPollTimer = null;
   let discoverMounted = false;
+  let suppressBrowseAnchorRedirect = false;
+  let lastNonDiscoverHash = '#/home.html';
   const discoverState = {
     sections: null,
     query: '',
@@ -158,7 +160,13 @@
 
   function getRouteHrefWithoutDiscover() {
     if (window.location.hash.startsWith('#/') && !isDiscoverRoute()) return window.location.hash;
-    return '#/home.html';
+    return lastNonDiscoverHash || '#/home.html';
+  }
+
+  function rememberNonDiscoverRoute() {
+    if (window.location.hash.startsWith('#/') && !isDiscoverRoute()) {
+      lastNonDiscoverHash = window.location.hash;
+    }
   }
 
   async function getJellyfinItem(itemId) {
@@ -644,13 +652,28 @@
       const text = (button.textContent || '').trim();
       if (!/^(Home|Favorites|Favourites)$/i.test(text)) return;
 
-      button.addEventListener('click', () => {
-        if (!isDiscoverRoute()) return;
+      button.addEventListener('click', event => {
+        if (!isDiscoverRoute() || suppressBrowseAnchorRedirect) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const targetLabel = text;
+        const targetHash = getRouteHrefWithoutDiscover();
+        window.location.hash = targetHash;
+
         setTimeout(() => {
-          if (isDiscoverRoute()) {
-            window.location.hash = getRouteHrefWithoutDiscover();
+          const restoredContainer = getBrowseButtonContainer();
+          const restoredButton = restoredContainer
+            ? Array.from(restoredContainer.children).find(el => ((el.textContent || '').trim() === targetLabel))
+            : null;
+
+          if (restoredButton) {
+            suppressBrowseAnchorRedirect = true;
+            restoredButton.click();
+            setTimeout(() => { suppressBrowseAnchorRedirect = false; }, 0);
           }
-        }, 0);
+        }, 80);
       });
     });
   }
@@ -792,7 +815,24 @@
     }
   }
 
+  function applyDiscoverRequestState(button, mediaType, data) {
+    const info = statusInfo(data?.mediaInfo?.status, mediaType);
+    button.textContent = info.label;
+    button.style.background = info.color;
+    button.disabled = info.disabled;
+  }
+
+  function updateDiscoverRequestButtons(mediaType, mediaId, data) {
+    Array.from(document.querySelectorAll('[data-request-id]')).forEach(button => {
+      if (!(button instanceof HTMLButtonElement)) return;
+      if (button.getAttribute('data-request-media') !== mediaType) return;
+      if (Number(button.getAttribute('data-request-id')) !== Number(mediaId)) return;
+      applyDiscoverRequestState(button, mediaType, data);
+    });
+  }
+
   function handleRouteChange() {
+    rememberNonDiscoverRoute();
     injectDiscoverMenuLink();
     injectBrowseDiscoverButton();
     bindBrowseAnchorButtons();
@@ -1014,10 +1054,13 @@
         const result = await submitRequest(button, mediaType, mediaId, data);
         if (result) {
           trackRequestedItem(mediaType, mediaId, title);
-          if (discoverState.query.trim()) {
-            await loadDiscoverSearch();
+          const refreshed = await seerrStatus(mediaType, mediaId);
+          if (refreshed) {
+            updateDiscoverRequestButtons(mediaType, mediaId, refreshed);
           } else {
-            await loadDiscoverSections();
+            button.textContent = 'Failed - retry';
+            button.style.background = '#e53935';
+            button.disabled = false;
           }
         } else {
           const reset = statusInfo(data?.mediaInfo?.status, mediaType);

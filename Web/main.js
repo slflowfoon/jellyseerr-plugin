@@ -62,7 +62,7 @@
       '.js-seerr-toast { min-width:280px; max-width:360px; background:rgba(24,24,24,.96); color:#fff; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.35); border:1px solid var(--js-seerr-border); padding:.95rem 1rem; transform:translateY(-6px); opacity:0; animation: jsSeerrToastIn .2s ease forwards; }',
       '.js-seerr-toastTitle { font-size:.9rem; color:var(--js-seerr-accent); margin-bottom:.25rem; }',
       '.js-seerr-toastBody { font-size:.98rem; line-height:1.35; }',
-      '#js-seerr-header-btn { display:inline-flex; align-items:center; justify-content:center; }',
+      '#js-seerr-browse-btn { white-space:nowrap; }',
       '#js-seerr-nav { display:flex; align-items:center; }',
       '#js-seerr-nav .navMenuOptionText { margin-left:0 !important; }',
       '#js-seerr-nav .navMenuOptionIcon { margin-right:1.15rem; }',
@@ -595,30 +595,17 @@
       || document.querySelector('.mainDrawer');
   }
 
-  function getHeaderSearchButton() {
-    return document.querySelector('button[title="Search"]')
-      || document.querySelector('button[aria-label="Search"]')
-      || document.querySelector('.headerButton.headerButton-search')
-      || document.querySelector('.headerRight button[title="Search"]')
-      || document.querySelector('.headerRight .btnSearch');
+  function getBrowseAnchorButton() {
+    return Array.from(document.querySelectorAll('button,a'))
+      .find(el => {
+        const text = (el.textContent || '').trim();
+        return /^(Home|Favorites|Favourites)$/i.test(text);
+      }) || null;
   }
 
-  function getHeaderButtonContainer() {
-    const searchBtn = getHeaderSearchButton();
-    if (searchBtn?.parentElement) return searchBtn.parentElement;
-
-    return document.querySelector('.headerRight')
-      || document.querySelector('.headerButtons')
-      || document.querySelector('.pageTitleWithDefaultLogo')
-      || null;
-  }
-
-  function getHeaderButtonTemplate() {
-    return getHeaderSearchButton()
-      || document.querySelector('.headerRight button')
-      || document.querySelector('button[title="Cast"]')
-      || document.querySelector('button[aria-label="Cast"]')
-      || null;
+  function getBrowseButtonContainer() {
+    const anchor = getBrowseAnchorButton();
+    return anchor?.parentElement || null;
   }
 
   function injectDiscoverMenuLink() {
@@ -644,30 +631,29 @@
     }
   }
 
-  function injectHeaderDiscoverButton() {
-    if (document.getElementById('js-seerr-header-btn')) return;
+  function injectBrowseDiscoverButton() {
+    if (document.getElementById('js-seerr-browse-btn')) return;
 
-    const container = getHeaderButtonContainer();
-    const template = getHeaderButtonTemplate();
-    if (!container || !template) return;
+    const template = getBrowseAnchorButton();
+    const container = getBrowseButtonContainer();
+    if (!template || !container) return;
 
     const button = template.cloneNode(true);
-    button.id = 'js-seerr-header-btn';
+    button.id = 'js-seerr-browse-btn';
+    button.removeAttribute('href');
+    button.removeAttribute('is');
     button.title = 'Discover';
     button.setAttribute('aria-label', 'Discover');
-    button.innerHTML = button.innerHTML.replace(/search/gi, 'explore');
-    if (!/explore/i.test(button.innerHTML)) {
-      button.innerHTML = '<span class="material-icons" aria-hidden="true">explore</span>';
-    }
+    button.textContent = 'Discover';
     button.onclick = null;
-    button.removeAttribute('is');
-    button.addEventListener('click', () => {
+    button.addEventListener('click', event => {
+      event.preventDefault();
       window.location.hash = DISCOVER_ROUTE;
     });
 
-    const searchBtn = getHeaderSearchButton();
-    if (searchBtn && searchBtn.parentElement === container) {
-      container.insertBefore(button, searchBtn.nextSibling);
+    const favoritesBtn = Array.from(container.children).find(el => /favorites|favourites/i.test((el.textContent || '').trim()));
+    if (favoritesBtn) {
+      container.insertBefore(button, favoritesBtn.nextSibling);
     } else {
       container.appendChild(button);
     }
@@ -685,9 +671,9 @@
       }
     }
 
-    const headerButton = document.getElementById('js-seerr-header-btn');
-    if (headerButton) {
-      headerButton.classList.toggle('button-submit', isDiscoverRoute());
+    const browseButton = document.getElementById('js-seerr-browse-btn');
+    if (browseButton) {
+      browseButton.classList.toggle('button-submit', isDiscoverRoute());
     }
   }
 
@@ -933,7 +919,7 @@
 
     initConfigPage();
     injectDiscoverMenuLink();
-    injectHeaderDiscoverButton();
+    injectBrowseDiscoverButton();
     updateDiscoverMenuState();
     ensureDiscoverPage();
 
@@ -973,7 +959,7 @@
 
     initConfigPage();
     injectDiscoverMenuLink();
-    injectHeaderDiscoverButton();
+    injectBrowseDiscoverButton();
     updateDiscoverMenuState();
     ensureDiscoverPage();
     startRequestPolling();

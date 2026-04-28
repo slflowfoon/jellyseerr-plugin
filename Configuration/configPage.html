@@ -1,69 +1,34 @@
-<!DOCTYPE html>
-<html>
-<head><title>JellySeerr</title></head>
-<body>
-<div data-role="page" class="ui-page-theme-a">
+<div
+  id="jellySeerrConfigPage"
+  data-role="page"
+  class="page type-interior pluginConfigurationPage"
+>
   <div data-role="content">
-    <div id="jellySeerrConfigPage" class="content-primary">
+    <div class="content-primary">
       <h2>JellySeerr</h2>
       <p style="color:#aaa;margin-bottom:20px">
         Connect Jellyfin to your Seerr instance. Once configured, a search button and
         inline request buttons will appear throughout the interface.
       </p>
 
-      <div class="inputContainer">
-        <label class="inputLabel inputLabelUnfocused" for="txtSeerrUrl">Seerr URL</label>
-        <input id="txtSeerrUrl" type="url" class="emby-input" placeholder="http://192.168.0.20:5055" />
-      </div>
+      <form id="jellySeerrConfigForm">
+        <div class="inputContainer">
+          <label class="inputLabel inputLabelUnfocused" for="txtSeerrUrl">Seerr URL</label>
+          <input id="txtSeerrUrl" type="url" class="emby-input" placeholder="http://192.168.0.20:5055" />
+        </div>
 
-      <div class="inputContainer">
-        <label class="inputLabel inputLabelUnfocused" for="txtSeerrApiKey">API Key</label>
-        <input id="txtSeerrApiKey" type="password" class="emby-input" />
-        <div class="fieldDescription">Found in Seerr → Settings → General → API Key</div>
-      </div>
+        <div class="inputContainer">
+          <label class="inputLabel inputLabelUnfocused" for="txtSeerrApiKey">API Key</label>
+          <input id="txtSeerrApiKey" type="password" class="emby-input" />
+          <div class="fieldDescription">Found in Seerr -> Settings -> General -> API Key</div>
+        </div>
 
-      <div style="margin-top:16px;display:flex;align-items:center;gap:12px">
-        <button id="btnSave" class="raised button-submit emby-button">Save</button>
-        <button id="btnTest" class="raised emby-button">Test Connection</button>
-        <span id="statusMsg" style="font-size:13px"></span>
-      </div>
+        <div style="margin-top:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <button id="btnSave" type="submit" class="raised button-submit emby-button">Save</button>
+          <button id="btnTest" type="button" class="raised emby-button">Test Connection</button>
+          <span id="statusMsg" style="font-size:13px"></span>
+        </div>
+      </form>
     </div>
   </div>
 </div>
-
-<script>
-(function () {
-  const GUID = '3b4f8e2a-7c91-4d05-b3e6-1a2f9c847d30';
-  const Api = window.ApiClient;
-
-  Api.getPluginConfiguration(GUID).then(cfg => {
-    document.getElementById('txtSeerrUrl').value = cfg.SeerrUrl || '';
-    document.getElementById('txtSeerrApiKey').value = cfg.SeerrApiKey || '';
-  });
-
-  function showStatus(msg, ok) {
-    const el = document.getElementById('statusMsg');
-    el.textContent = msg;
-    el.style.color = ok ? '#4caf50' : '#e53935';
-  }
-
-  document.getElementById('btnSave').addEventListener('click', function () {
-    Api.getPluginConfiguration(GUID).then(cfg => {
-      cfg.SeerrUrl = document.getElementById('txtSeerrUrl').value.trim();
-      cfg.SeerrApiKey = document.getElementById('txtSeerrApiKey').value.trim();
-      Api.updatePluginConfiguration(GUID, cfg).then(() => showStatus('Saved!', true));
-    });
-  });
-
-  document.getElementById('btnTest').addEventListener('click', function () {
-    showStatus('Testing…', true);
-    fetch('/plugins/JellySeerr/Status/movie/550', {
-      headers: { 'X-MediaBrowser-Token': Api.accessToken() }
-    })
-      .then(r => r.ok ? showStatus('Connection OK', true) : showStatus('Error ' + r.status, false))
-      .catch(() => showStatus('Could not reach Seerr', false));
-  });
-}());
-</script>
-</body>
-</html>

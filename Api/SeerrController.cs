@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Net.Mime;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
@@ -74,14 +76,19 @@ public class SeerrController : ControllerBase
 
         try
         {
+            var requestId = TryGetRequestId(body);
+            var method = string.IsNullOrEmpty(requestId) ? HttpMethod.Post : HttpMethod.Put;
+            var path = string.IsNullOrEmpty(requestId)
+                ? "/api/v1/request"
+                : $"/api/v1/request/{Uri.EscapeDataString(requestId)}";
+
             var client = _httpClientFactory.CreateClient();
-            var req = new HttpRequestMessage(HttpMethod.Post, $"{url}/api/v1/request");
+            var req = new HttpRequestMessage(method, $"{url}{path}");
             req.Headers.Add("X-Api-Key", key);
-            req.Content = new StringContent(body.GetRawText(), Encoding.UTF8, "application/json");
+            req.Content = new StringContent(SerializeRequestBody(body), Encoding.UTF8, MediaTypeNames.Application.Json);
 
             var resp = await client.SendAsync(req);
-            var content = await resp.Content.ReadAsStringAsync();
-            return Content(content, "application/json");
+            return await ToProxyResult(resp);
         }
         catch (Exception ex)
         {
@@ -102,13 +109,61 @@ public class SeerrController : ControllerBase
             req.Headers.Add("X-Api-Key", key);
 
             var resp = await client.SendAsync(req);
-            var content = await resp.Content.ReadAsStringAsync();
-            return Content(content, "application/json");
+            return await ToProxyResult(resp);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "JellySeerr: proxy error for {Path}", path);
             return StatusCode(500, "Proxy error");
         }
+    }
+
+    private static string? TryGetRequestId(JsonElement body)
+    {
+        if (!body.TryGetProperty("requestId", out var requestIdProp))
+        {
+            return null;
+        }
+
+        return requestIdProp.ValueKind switch
+        {
+            JsonValueKind.String => requestIdProp.GetString(),
+            JsonValueKind.Number => requestIdProp.GetRawText(),
+            _ => null,
+        };
+    }
+
+    private static string SerializeRequestBody(JsonElement body)
+    {
+        if (body.ValueKind != JsonValueKind.Object || !body.TryGetProperty("requestId", out _))
+        {
+            return body.GetRawText();
+        }
+
+        var payload = new Dictionary<string, JsonElement>();
+        foreach (var prop in body.EnumerateObject())
+        {
+            if (prop.NameEquals("requestId"))
+            {
+                continue;
+            }
+
+            payload[prop.Name] = prop.Value.Clone();
+        }
+
+        return JsonSerializer.Serialize(payload);
+    }
+
+    private static async Task<IActionResult> ToProxyResult(HttpResponseMessage resp)
+    {
+        var content = await resp.Content.ReadAsStringAsync();
+        var contentType = resp.Content.Headers.ContentType?.ToString() ?? MediaTypeNames.Application.Json;
+
+        return new ContentResult
+        {
+            Content = content,
+            ContentType = contentType,
+            StatusCode = (int)resp.StatusCode,
+        };
     }
 }

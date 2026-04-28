@@ -58,9 +58,18 @@
     } catch { return null; }
   }
 
-  async function seerrRequest(mediaType, mediaId) {
-    const body = { mediaType: mediaType, mediaId: Number(mediaId) };
-    if (mediaType === 'tv') body.seasons = 'all';
+  async function seerrRequest(mediaType, mediaId, opts = {}) {
+    const body = {
+      mediaType: mediaType,
+      mediaId: Number(mediaId)
+    };
+
+    if (opts.requestId != null) body.requestId = opts.requestId;
+    if (opts.is4k === true) body.is4k = true;
+    if (mediaType === 'tv' && Array.isArray(opts.seasons)) {
+      body.seasons = opts.seasons.map(Number).filter(Number.isFinite);
+    }
+
     try {
       return await apiFetch(API + '/Request', {
         method: 'POST',
@@ -72,18 +81,164 @@
 
   // ── Status helpers ───────────────────────────────────────────────────────
 
-  function statusInfo(status) {
+  function statusInfo(status, mediaType) {
     switch (status) {
       case Status.AVAILABLE:
         return { label: '✓ In Library', color: '#4caf50', disabled: true };
       case Status.PENDING:
       case Status.PROCESSING:
-        return { label: '🔔 Requested', color: '#ff9800', disabled: true };
+        return mediaType === 'tv'
+          ? { label: 'Edit Request', color: '#ff9800', disabled: false }
+          : { label: '🔔 Requested', color: '#ff9800', disabled: true };
       case Status.PARTIAL:
-        return { label: '🔔 Partial', color: '#ff9800', disabled: true };
+        return mediaType === 'tv'
+          ? { label: 'Request Seasons', color: '#ff9800', disabled: false }
+          : { label: '🔔 Partial', color: '#ff9800', disabled: true };
       default:
-        return { label: '+ Request', color: '#00a4dc', disabled: false };
+        return mediaType === 'tv'
+          ? { label: 'Request Seasons', color: '#00a4dc', disabled: false }
+          : { label: '+ Request', color: '#00a4dc', disabled: false };
     }
+  }
+
+  function getFirstRequestId(data) {
+    const request = data?.mediaInfo?.requests?.[0];
+    return request ? request.id : null;
+  }
+
+  function getRequestedSeasonNumbers(data) {
+    const request = data?.mediaInfo?.requests?.[0];
+    const seasons = request?.seasons;
+    if (!Array.isArray(seasons)) return [];
+
+    return seasons
+      .map(season => typeof season === 'number' ? season : season?.seasonNumber)
+      .filter(Number.isFinite)
+      .map(Number);
+  }
+
+  function seasonStatusInfo(status) {
+    switch (status) {
+      case Status.AVAILABLE:
+        return { label: 'Available', color: '#4caf50' };
+      case Status.PENDING:
+      case Status.PROCESSING:
+        return { label: 'Requested', color: '#ff9800' };
+      case Status.PARTIAL:
+        return { label: 'Partial', color: '#ff9800' };
+      default:
+        return { label: 'Missing', color: '#00a4dc' };
+    }
+  }
+
+  function normalizeSeasonData(data) {
+    const requested = new Set(getRequestedSeasonNumbers(data));
+    const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
+
+    return seasons
+      .filter(season => Number.isFinite(season?.seasonNumber) && season.seasonNumber > 0)
+      .map(season => {
+        const seasonNumber = Number(season.seasonNumber);
+        const status = Number.isFinite(season?.status) ? Number(season.status) : Status.UNKNOWN;
+        return {
+          seasonNumber: seasonNumber,
+          name: season.name || ('Season ' + seasonNumber),
+          episodeCount: season.episodeCount,
+          status: status,
+          selected: requested.size
+            ? requested.has(seasonNumber)
+            : status !== Status.AVAILABLE
+        };
+      });
+  }
+
+  function openSeasonPicker(data) {
+    const seasons = normalizeSeasonData(data);
+    if (!seasons.length) return Promise.resolve(null);
+
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.id = 'js-seerr-seasons';
+      overlay.style.cssText = [
+        'position:fixed', 'inset:0', 'z-index:100000',
+        'background:rgba(0,0,0,.82)',
+        'display:flex', 'align-items:center', 'justify-content:center',
+        'padding:20px'
+      ].join(';');
+
+      const rows = seasons.map(season => {
+        const info = seasonStatusInfo(season.status);
+        const count = season.episodeCount ? ' · ' + season.episodeCount + ' eps' : '';
+        return [
+          '<label style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);cursor:pointer">',
+          '  <span style="display:flex;flex-direction:column;min-width:0">',
+          '    <span style="font-weight:600">' + escHtml(season.name) + '</span>',
+          '    <span style="font-size:12px;color:' + info.color + '">' + escHtml(info.label + count) + '</span>',
+          '  </span>',
+          '  <input type="checkbox" data-season="' + season.seasonNumber + '"' + (season.selected ? ' checked' : '') + ' />',
+          '</label>'
+        ].join('');
+      }).join('');
+
+      overlay.innerHTML = [
+        '<div style="width:100%;max-width:520px;max-height:80vh;overflow:auto;background:#181818;color:#fff;border-radius:10px;padding:18px 18px 14px;box-shadow:0 18px 50px rgba(0,0,0,.45)">',
+        '  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">',
+        '    <h3 style="margin:0;font-size:20px">Request Seasons</h3>',
+        '    <button type="button" data-action="close" style="padding:8px 12px;border:none;border-radius:6px;background:#444;color:#fff;cursor:pointer">Close</button>',
+        '  </div>',
+        '  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px">',
+        '    <button type="button" data-action="toggle-all" style="padding:8px 12px;border:none;border-radius:6px;background:#2d2d2d;color:#fff;cursor:pointer">Toggle All</button>',
+        '    <button type="button" data-action="submit" style="padding:8px 12px;border:none;border-radius:6px;background:#00a4dc;color:#fff;cursor:pointer">Submit Request</button>',
+        '  </div>',
+        rows,
+        '</div>'
+      ].join('');
+
+      function finish(value) {
+        overlay.remove();
+        resolve(value);
+      }
+
+      overlay.addEventListener('click', event => {
+        if (event.target === overlay) finish(null);
+      });
+
+      overlay.querySelector('[data-action="close"]').addEventListener('click', () => finish(null));
+      overlay.querySelector('[data-action="toggle-all"]').addEventListener('click', () => {
+        const inputs = Array.from(overlay.querySelectorAll('input[type="checkbox"]'));
+        const allChecked = inputs.every(input => input.checked);
+        inputs.forEach(input => { input.checked = !allChecked; });
+      });
+      overlay.querySelector('[data-action="submit"]').addEventListener('click', () => {
+        const selected = Array.from(overlay.querySelectorAll('input[type="checkbox"]:checked'))
+          .map(input => Number(input.getAttribute('data-season')))
+          .filter(Number.isFinite);
+        finish(selected.length ? selected : null);
+      });
+
+      document.body.appendChild(overlay);
+    });
+  }
+
+  async function submitRequest(button, mediaType, mediaId, data) {
+    const requestId = getFirstRequestId(data);
+
+    if (mediaType === 'tv') {
+      const seasons = await openSeasonPicker(data);
+      if (!seasons?.length) return false;
+      button.textContent = 'Requesting…';
+      button.disabled = true;
+      return Boolean(await seerrRequest(mediaType, mediaId, {
+        requestId: requestId,
+        seasons: seasons
+      }));
+    }
+
+    button.textContent = 'Requesting…';
+    button.disabled = true;
+    return Boolean(await seerrRequest(mediaType, mediaId, {
+      requestId: requestId
+    }));
   }
 
   // ── Config page ──────────────────────────────────────────────────────────
@@ -238,25 +393,35 @@
     container.appendChild(btn);
 
     const data = await seerrStatus(mediaType, tmdbId);
-    const info = statusInfo(data?.mediaInfo?.status);
+    const info = statusInfo(data?.mediaInfo?.status, mediaType);
     btn.textContent = info.label;
     btn.style.cssText = btnStyle(info.color);
     btn.disabled = info.disabled;
 
     if (!info.disabled) {
       btn.addEventListener('click', async () => {
-        btn.textContent = 'Requesting…';
-        btn.disabled = true;
-        const result = await seerrRequest(mediaType, tmdbId);
-        if (result) {
-          const done = statusInfo(Status.PENDING);
-          btn.textContent = done.label;
-          btn.style.cssText = btnStyle(done.color);
-        } else {
+        const currentData = await seerrStatus(mediaType, tmdbId) || data;
+        const result = await submitRequest(btn, mediaType, tmdbId, currentData);
+        if (result === false) {
+          const reset = statusInfo(currentData?.mediaInfo?.status, mediaType);
+          btn.textContent = reset.label;
+          btn.style.cssText = btnStyle(reset.color);
+          btn.disabled = reset.disabled;
+          return;
+        }
+
+        const refreshed = await seerrStatus(mediaType, tmdbId);
+        if (!refreshed) {
           btn.textContent = '✕ Failed — retry';
           btn.style.cssText = btnStyle('#e53935');
           btn.disabled = false;
+          return;
         }
+
+        const done = statusInfo(refreshed?.mediaInfo?.status, mediaType);
+        btn.textContent = done.label;
+        btn.style.cssText = btnStyle(done.color);
+        btn.disabled = done.disabled;
       });
     }
   }
@@ -271,7 +436,7 @@
     const poster = item.posterPath
       ? 'https://image.tmdb.org/t/p/w92' + item.posterPath
       : null;
-    const info = statusInfo(item.mediaInfo ? item.mediaInfo.status : Status.UNKNOWN);
+    const info = statusInfo(item.mediaInfo ? item.mediaInfo.status : Status.UNKNOWN, mediaType);
 
     const card = document.createElement('div');
     card.style.cssText = [
@@ -296,13 +461,29 @@
     const btn = card.querySelector('button');
     if (!info.disabled) {
       btn.addEventListener('click', async () => {
-        btn.textContent = 'Requesting…';
-        btn.disabled = true;
-        const result = await seerrRequest(mediaType, tmdbId);
-        if (result) {
-          const done = statusInfo(Status.PENDING);
+        const data = await seerrStatus(mediaType, tmdbId);
+        if (!data) {
+          btn.textContent = '✕ Failed';
+          btn.style.background = '#e53935';
+          btn.disabled = false;
+          return;
+        }
+
+        const result = await submitRequest(btn, mediaType, tmdbId, data);
+        if (!result) {
+          const reset = statusInfo(data?.mediaInfo?.status, mediaType);
+          btn.textContent = reset.label;
+          btn.style.background = reset.color;
+          btn.disabled = reset.disabled;
+          return;
+        }
+
+        const refreshed = await seerrStatus(mediaType, tmdbId);
+        if (refreshed) {
+          const done = statusInfo(refreshed?.mediaInfo?.status, mediaType);
           btn.textContent = done.label;
           btn.style.background = done.color;
+          btn.disabled = done.disabled;
         } else {
           btn.textContent = '✕ Failed';
           btn.style.background = '#e53935';

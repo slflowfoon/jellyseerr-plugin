@@ -37,7 +37,7 @@
     style.id = 'js-seerr-styles';
     style.textContent = [
       ':root { --js-seerr-accent: var(--theme-primary-color, #00a4dc); --js-seerr-surface: rgba(255,255,255,.04); --js-seerr-surface-strong: rgba(255,255,255,.08); --js-seerr-border: rgba(255,255,255,.08); }',
-      '#js-seerr-discover.page { position: fixed; inset: 0; z-index: 9998; overflow: auto; padding: 4.5rem 1.5rem 2rem; background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.02) 14rem), var(--theme-body-background, #101010); color: var(--theme-text-color, #fff); }',
+      '#js-seerr-discover.page { position: absolute; inset: 0; z-index: 5; overflow: auto; padding: 1.5rem 1.5rem 2rem; background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.02) 14rem), var(--theme-body-background, #101010); color: var(--theme-text-color, #fff); }',
       '#js-seerr-discover .content-primary { max-width: 1320px; margin: 0 auto; padding: 0; }',
       '.js-seerr-hero { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }',
       '.js-seerr-eyebrow { font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; color:var(--js-seerr-accent); margin-bottom:.35rem; }',
@@ -68,7 +68,7 @@
       '#js-seerr-nav .navMenuOptionText { margin-left:0 !important; }',
       '#js-seerr-nav .navMenuOptionIcon { margin-right:1.15rem; }',
       '@keyframes jsSeerrToastIn { to { transform:translateY(0); opacity:1; } }',
-      '@media (max-width: 900px) { #js-seerr-discover.page { padding: 4.25rem 1rem 1.5rem; } .js-seerr-title { font-size:2rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } }'
+      '@media (max-width: 900px) { #js-seerr-discover.page { padding: 1rem 1rem 1.5rem; } .js-seerr-title { font-size:2rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } }'
     ].join('\n');
     document.head.appendChild(style);
   }
@@ -624,6 +624,12 @@
     }) || null;
   }
 
+  function getDiscoverHost() {
+    return document.querySelector('.mainAnimatedPages')
+      || document.querySelector('.pageContainer')
+      || document.querySelector('.skinBody');
+  }
+
   function injectDiscoverMenuLink() {
     const drawer = getDrawerContainer();
     if (!drawer || document.getElementById('js-seerr-nav')) return;
@@ -758,13 +764,21 @@
       return;
     }
 
+    const host = getDiscoverHost();
+    if (!host) return;
+    if (host !== document.body && !host.style.position) {
+      host.style.position = 'relative';
+    }
+
     let page = document.getElementById('js-seerr-discover');
     if (!page) {
       page = document.createElement('div');
       page.id = 'js-seerr-discover';
       page.className = 'page type-interior';
-      document.body.appendChild(page);
+      host.appendChild(page);
       discoverMounted = false;
+    } else if (page.parentElement !== host) {
+      host.appendChild(page);
     }
 
     if (!discoverMounted) {

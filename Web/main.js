@@ -626,9 +626,10 @@
   }
 
   function getDiscoverHost() {
-    return document.querySelector('.mainAnimatedPages')
-      || document.querySelector('.pageContainer')
-      || document.querySelector('.skinBody');
+    return document.querySelector('.skinBody .mainAnimatedPages')
+      || document.querySelector('.mainAnimatedPages')
+      || document.querySelector('.viewContainer')
+      || null;
   }
 
   function setDiscoverHostVisibility(host, active) {
@@ -907,7 +908,6 @@
 
   function bindDiscoverPage(page) {
     const search = page.querySelector('#js-seerr-discover-search');
-    const closeBtn = page.querySelector('#js-seerr-discover-close');
     const refreshBtn = page.querySelector('#js-seerr-discover-refresh');
 
     if (search) {
@@ -916,12 +916,6 @@
         discoverState.query = event.target.value;
         clearTimeout(discoverSearchTimer);
         discoverSearchTimer = setTimeout(loadDiscoverSearch, 300);
-      });
-    }
-
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
-        window.location.hash = getRouteHrefWithoutDiscover();
       });
     }
 
@@ -987,7 +981,6 @@
       '    </div>',
       '    <div class="js-seerr-actions">',
       '      <button id="js-seerr-discover-refresh" class="js-seerr-pill" type="button">Refresh</button>',
-      '      <button id="js-seerr-discover-close" class="js-seerr-pill" type="button">Close</button>',
       '    </div>',
       '  </div>',
       '  <div class="js-seerr-searchbar">',

@@ -595,17 +595,32 @@
       || document.querySelector('.mainDrawer');
   }
 
-  function getBrowseAnchorButton() {
-    return Array.from(document.querySelectorAll('button,a'))
-      .find(el => {
-        const text = (el.textContent || '').trim();
-        return /^(Home|Favorites|Favourites)$/i.test(text);
-      }) || null;
+  function getBrowseButtonContainer() {
+    const candidates = Array.from(document.querySelectorAll('button,a'))
+      .filter(el => /^(Home|Favorites|Favourites)$/i.test((el.textContent || '').trim()))
+      .map(el => el.parentElement)
+      .filter(Boolean);
+
+    return candidates.find(container => {
+      if (container.closest('.mainDrawer') || container.closest('#js-seerr-discover')) {
+        return false;
+      }
+
+      const labels = Array.from(container.children).map(el => (el.textContent || '').trim());
+      const hasHome = labels.some(text => /^Home$/i.test(text));
+      const hasFavorites = labels.some(text => /^(Favorites|Favourites)$/i.test(text));
+      return hasHome && hasFavorites;
+    }) || null;
   }
 
-  function getBrowseButtonContainer() {
-    const anchor = getBrowseAnchorButton();
-    return anchor?.parentElement || null;
+  function getBrowseAnchorButton() {
+    const container = getBrowseButtonContainer();
+    if (!container) return null;
+
+    return Array.from(container.children).find(el => {
+      const text = (el.textContent || '').trim();
+      return /^(Home|Favorites|Favourites)$/i.test(text);
+    }) || null;
   }
 
   function injectDiscoverMenuLink() {

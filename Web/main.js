@@ -64,6 +64,8 @@
       '.js-seerr-toastBody { font-size:.98rem; line-height:1.35; }',
       '#js-seerr-header-btn { display:inline-flex; align-items:center; justify-content:center; }',
       '#js-seerr-nav { display:flex; align-items:center; }',
+      '#js-seerr-nav .navMenuOptionText { margin-left:0 !important; }',
+      '#js-seerr-nav .navMenuOptionIcon { margin-right:1.15rem; }',
       '@keyframes jsSeerrToastIn { to { transform:translateY(0); opacity:1; } }',
       '@media (max-width: 900px) { #js-seerr-discover.page { padding: 4.25rem 1rem 1.5rem; } .js-seerr-title { font-size:2rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } }'
     ].join('\n');
@@ -597,6 +599,24 @@
       || document.querySelector('.headerRight .btnSearch');
   }
 
+  function getHeaderButtonContainer() {
+    const searchBtn = getHeaderSearchButton();
+    if (searchBtn?.parentElement) return searchBtn.parentElement;
+
+    return document.querySelector('.headerRight')
+      || document.querySelector('.headerButtons')
+      || document.querySelector('.pageTitleWithDefaultLogo')
+      || null;
+  }
+
+  function getHeaderButtonTemplate() {
+    return getHeaderSearchButton()
+      || document.querySelector('.headerRight button')
+      || document.querySelector('button[title="Cast"]')
+      || document.querySelector('button[aria-label="Cast"]')
+      || null;
+  }
+
   function injectDiscoverMenuLink() {
     const drawer = getDrawerContainer();
     if (!drawer || document.getElementById('js-seerr-nav')) return;
@@ -623,10 +643,11 @@
   function injectHeaderDiscoverButton() {
     if (document.getElementById('js-seerr-header-btn')) return;
 
-    const searchBtn = getHeaderSearchButton();
-    if (!searchBtn || !searchBtn.parentElement) return;
+    const container = getHeaderButtonContainer();
+    const template = getHeaderButtonTemplate();
+    if (!container || !template) return;
 
-    const button = searchBtn.cloneNode(true);
+    const button = template.cloneNode(true);
     button.id = 'js-seerr-header-btn';
     button.title = 'Discover';
     button.setAttribute('aria-label', 'Discover');
@@ -635,11 +656,17 @@
       button.innerHTML = '<span class="material-icons" aria-hidden="true">explore</span>';
     }
     button.onclick = null;
+    button.removeAttribute('is');
     button.addEventListener('click', () => {
       window.location.hash = DISCOVER_ROUTE;
     });
 
-    searchBtn.parentElement.insertBefore(button, searchBtn.nextSibling);
+    const searchBtn = getHeaderSearchButton();
+    if (searchBtn && searchBtn.parentElement === container) {
+      container.insertBefore(button, searchBtn.nextSibling);
+    } else {
+      container.appendChild(button);
+    }
   }
 
   function updateDiscoverMenuState() {

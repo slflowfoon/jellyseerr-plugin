@@ -141,6 +141,10 @@
     return window.location.hash.includes('jellyseerr=discover');
   }
 
+  function isPlaybackRoute() {
+    return /\/video|\/playback|#.*video|#.*playback/i.test(window.location.href);
+  }
+
   function getRouteHrefWithoutDiscover() {
     if (window.location.hash.startsWith('#/') && !isDiscoverRoute()) return window.location.hash;
     return '#/home.html';
@@ -371,13 +375,18 @@
     const tracked = loadTrackedRequests();
     if (!tracked.length) return;
 
+    const deferToasts = isPlaybackRoute();
     const nextTracked = [];
     for (const item of tracked) {
       const data = await seerrStatus(item.mediaType, item.mediaId);
       const status = data?.mediaInfo?.status;
 
       if (status === Status.AVAILABLE) {
-        showToast('Available in Jellyfin', item.title + ' is now in your library.');
+        if (deferToasts) {
+          nextTracked.push(item);
+        } else {
+          showToast('Available in Jellyfin', item.title + ' is now in your library.');
+        }
         continue;
       }
 

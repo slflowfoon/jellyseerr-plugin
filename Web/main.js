@@ -15,6 +15,7 @@
   let discoverPageLoading = false;
   let discoverRequestInFlight = false;
   let requestPollTimer = null;
+  let discoverMounted = false;
   const discoverState = {
     sections: null,
     query: '',
@@ -666,6 +667,7 @@
   function ensureDiscoverPage() {
     if (!isDiscoverRoute()) {
       document.getElementById('js-seerr-discover')?.remove();
+      discoverMounted = false;
       return;
     }
 
@@ -675,9 +677,14 @@
       page.id = 'js-seerr-discover';
       page.className = 'page type-interior';
       document.body.appendChild(page);
+      discoverMounted = false;
     }
 
-    renderDiscoverPage();
+    if (!discoverMounted) {
+      renderDiscoverPage();
+      discoverMounted = true;
+    }
+
     if (!discoverState.sections && !discoverPageLoading) {
       loadDiscoverSections();
     }
@@ -850,6 +857,7 @@
     ].join('');
 
     bindDiscoverPage(page);
+    discoverMounted = true;
   }
 
   const observer = new MutationObserver(() => {

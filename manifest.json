@@ -1,0 +1,11 @@
+[
+  {
+    "guid": "3b4f8e2a-7c91-4d05-b3e6-1a2f9c847d30",
+    "name": "JellySeerr",
+    "description": "Request movies and TV shows via Seerr directly from Jellyfin.",
+    "overview": "Adds a request button to media detail pages and a full search modal so you can browse and request any movie or TV show through your Seerr instance.",
+    "owner": "slflowfoon",
+    "category": "General",
+    "versions": []
+  }
+]

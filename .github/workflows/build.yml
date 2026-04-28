@@ -1,0 +1,83 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Publish
+        run: dotnet publish --configuration Release --output ./publish
+
+      - name: Package
+        run: |
+          cd publish
+          zip -j ../JellySeerr.zip JellySeerr.dll
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Compute checksum
+        id: checksum
+        run: echo "md5=$(md5sum JellySeerr.zip | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: JellySeerr.zip
+          generate_release_notes: true
+
+      - name: Update manifest
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${{ steps.version.outputs.version }}"
+          CHECKSUM="${{ steps.checksum.outputs.md5 }}"
+          REPO="${{ github.repository }}"
+          URL="https://github.com/${REPO}/releases/download/${TAG}/JellySeerr.zip"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          cat > manifest.json << EOF
+          [
+            {
+              "guid": "3b4f8e2a-7c91-4d05-b3e6-1a2f9c847d30",
+              "name": "JellySeerr",
+              "description": "Request movies and TV shows via Seerr directly from Jellyfin.",
+              "overview": "Adds a request button to media detail pages and a full search modal so you can browse and request any movie or TV show through your Seerr instance.",
+              "owner": "slflowfoon",
+              "category": "General",
+              "versions": [
+                {
+                  "version": "${VERSION}.0",
+                  "changelog": "See GitHub release notes.",
+                  "targetAbi": "10.10.0.0",
+                  "sourceUrl": "${URL}",
+                  "checksum": "${CHECKSUM}",
+                  "timestamp": "${TIMESTAMP}"
+                }
+              ]
+            }
+          ]
+          EOF
+
+      - name: Commit manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "Update manifest for ${{ github.ref_name }}" || true
+          git push origin HEAD:main || true

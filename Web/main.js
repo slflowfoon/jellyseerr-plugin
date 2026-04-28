@@ -663,6 +663,10 @@
     button.setAttribute('aria-label', 'Discover');
     button.innerHTML = '<span class="material-icons" aria-hidden="true">explore</span><span>Discover</span>';
     button.onclick = null;
+    button.className = button.className
+      .split(/\s+/)
+      .filter(name => name && !/home|favorite|favourite/i.test(name))
+      .join(' ');
     button.classList.remove('button-submit');
     button.classList.remove('selected');
     button.classList.remove('navMenuOption-selected');

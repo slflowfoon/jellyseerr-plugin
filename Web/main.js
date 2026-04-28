@@ -642,10 +642,14 @@
     button.id = 'js-seerr-browse-btn';
     button.removeAttribute('href');
     button.removeAttribute('is');
+    button.removeAttribute('aria-current');
     button.title = 'Discover';
     button.setAttribute('aria-label', 'Discover');
     button.textContent = 'Discover';
     button.onclick = null;
+    button.classList.remove('button-submit');
+    button.classList.remove('selected');
+    button.classList.remove('navMenuOption-selected');
     button.addEventListener('click', event => {
       event.preventDefault();
       window.location.hash = DISCOVER_ROUTE;
@@ -674,7 +678,16 @@
     const browseButton = document.getElementById('js-seerr-browse-btn');
     if (browseButton) {
       browseButton.classList.toggle('button-submit', isDiscoverRoute());
+      browseButton.classList.remove('selected');
+      browseButton.removeAttribute('aria-current');
     }
+  }
+
+  function handleRouteChange() {
+    injectDiscoverMenuLink();
+    injectBrowseDiscoverButton();
+    updateDiscoverMenuState();
+    ensureDiscoverPage();
   }
 
   async function loadDiscoverSections() {
@@ -918,10 +931,7 @@
     const href = window.location.href;
 
     initConfigPage();
-    injectDiscoverMenuLink();
-    injectBrowseDiscoverButton();
-    updateDiscoverMenuState();
-    ensureDiscoverPage();
+    handleRouteChange();
 
     if (href !== lastHref) {
       lastHref = href;
@@ -950,6 +960,7 @@
 
     ensurePluginStyles();
     observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('hashchange', handleRouteChange);
     document.addEventListener('viewshow', event => {
       if (event.target && event.target.id === 'jellySeerrConfigPage') {
         bindConfigPage(event.target);
@@ -958,10 +969,7 @@
     });
 
     initConfigPage();
-    injectDiscoverMenuLink();
-    injectBrowseDiscoverButton();
-    updateDiscoverMenuState();
-    ensureDiscoverPage();
+    handleRouteChange();
     startRequestPolling();
     if (isDetailPage()) setTimeout(injectDetailButton, 800);
   }

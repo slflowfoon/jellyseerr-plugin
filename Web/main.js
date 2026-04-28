@@ -730,10 +730,44 @@
     }
   }
 
+  function updateBrowseButtonStates(activeDiscover) {
+    const container = getBrowseButtonContainer();
+    const browseButton = document.getElementById('js-seerr-browse-btn');
+    if (!container || !browseButton) return;
+
+    Array.from(container.children).forEach(button => {
+      if (!(button instanceof HTMLElement)) return;
+
+      const text = (button.textContent || '').trim();
+      const isNativeBrowseButton = /^(Home|Favorites|Favourites)$/i.test(text);
+
+      if (button === browseButton) {
+        button.classList.toggle('emby-tab-button-active', activeDiscover);
+        button.classList.remove('button-submit');
+        button.classList.remove('selected');
+        if (activeDiscover) {
+          button.setAttribute('aria-current', 'page');
+        } else {
+          button.removeAttribute('aria-current');
+        }
+        return;
+      }
+
+      if (!isNativeBrowseButton) return;
+
+      if (activeDiscover) {
+        button.classList.remove('emby-tab-button-active');
+        button.classList.remove('selected');
+        button.removeAttribute('aria-current');
+      }
+    });
+  }
+
   function updateDiscoverMenuState() {
+    const activeDiscover = isDiscoverRoute();
     const link = document.getElementById('js-seerr-nav');
     if (link) {
-      if (isDiscoverRoute()) {
+      if (activeDiscover) {
         link.classList.add('navMenuOption-selected');
         link.setAttribute('aria-current', 'page');
       } else {
@@ -744,9 +778,7 @@
 
     const browseButton = document.getElementById('js-seerr-browse-btn');
     if (browseButton) {
-      browseButton.classList.toggle('button-submit', isDiscoverRoute());
-      browseButton.classList.remove('selected');
-      browseButton.removeAttribute('aria-current');
+      updateBrowseButtonStates(activeDiscover);
     }
   }
 

@@ -27,7 +27,7 @@ Jellyfin plugin that adds Seerr request functionality directly into the Jellyfin
 
 | Field | Description |
 |-------|-------------|
-| Seerr URL | Base URL of your Seerr instance, e.g. `http://192.168.0.20:5055` |
+| Seerr URL | Base URL of your Seerr instance, e.g. `http://192.168.1.100:5055` |
 | API Key | Found in Seerr → Settings → General → API Key |
 
 ## Building from Source

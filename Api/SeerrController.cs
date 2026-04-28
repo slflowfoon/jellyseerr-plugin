@@ -55,6 +55,30 @@ public class SeerrController : ControllerBase
         return Proxy(url, key, path);
     }
 
+    /// <summary>Discover Seerr content for the custom Discover page.</summary>
+    [HttpGet("Discover/{section}")]
+    [Authorize]
+    public Task<IActionResult> Discover(string section, [FromQuery] int page = 1)
+    {
+        var (url, key) = GetConfig();
+        var path = section.ToLowerInvariant() switch
+        {
+            "trending" => "/api/v1/discover/trending",
+            "movies" => "/api/v1/discover/movies",
+            "tv" => "/api/v1/discover/tv",
+            "upcoming-movies" => "/api/v1/discover/movies/upcoming",
+            "upcoming-tv" => "/api/v1/discover/tv/upcoming",
+            _ => string.Empty,
+        };
+
+        if (string.IsNullOrEmpty(path))
+        {
+            return Task.FromResult<IActionResult>(NotFound());
+        }
+
+        return Proxy(url, key, $"{path}?page={Math.Max(page, 1)}");
+    }
+
     /// <summary>Get Seerr request status for a specific TMDB item.</summary>
     [HttpGet("Status/{mediaType}/{tmdbId:int}")]
     [Authorize]

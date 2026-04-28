@@ -2,14 +2,22 @@
   'use strict';
 
   const GUID = '3b4f8e2a-7c91-4d05-b3e6-1a2f9c847d30';
-
-  // All Seerr calls are proxied through Jellyfin's own API to avoid CORS.
   const API = '/plugins/JellySeerr';
-
-  // Seerr media status codes
+  const DISCOVER_ROUTE = '#/home.html?jellyseerr=discover';
   const Status = { UNKNOWN: 1, PENDING: 2, PROCESSING: 3, PARTIAL: 4, AVAILABLE: 5 };
 
-  // ── Auth ─────────────────────────────────────────────────────────────────
+  let lastHref = '';
+  let lastDetailId = null;
+  let retryTimer = null;
+  let discoverSearchTimer = null;
+  let discoverPageLoading = false;
+  let discoverRequestInFlight = false;
+  const discoverState = {
+    sections: null,
+    query: '',
+    searchResults: null,
+    loadingSearch: false
+  };
 
   function getToken() {
     try {
@@ -26,8 +34,6 @@
     return resp.json();
   }
 
-  // ── Jellyfin item lookup ─────────────────────────────────────────────────
-
   function getItemId() {
     const src = window.location.hash + window.location.search;
     const m = src.match(/[?&]id=([^&]+)/);
@@ -38,13 +44,20 @@
     return /\/details|#.*details/i.test(window.location.href);
   }
 
+  function isDiscoverRoute() {
+    return window.location.hash.includes('jellyseerr=discover');
+  }
+
+  function getRouteHrefWithoutDiscover() {
+    if (window.location.hash.startsWith('#/') && !isDiscoverRoute()) return window.location.hash;
+    return '#/home.html';
+  }
+
   async function getJellyfinItem(itemId) {
     try {
       return await apiFetch('/Items/' + itemId + '?Fields=ProviderIds');
     } catch { return null; }
   }
-
-  // ── Seerr proxy calls ────────────────────────────────────────────────────
 
   async function seerrStatus(mediaType, tmdbId) {
     try {
@@ -55,6 +68,12 @@
   async function seerrSearch(query) {
     try {
       return await apiFetch(API + '/Search?query=' + encodeURIComponent(query));
+    } catch { return null; }
+  }
+
+  async function seerrDiscover(section, page = 1) {
+    try {
+      return await apiFetch(API + '/Discover/' + section + '?page=' + page);
     } catch { return null; }
   }
 
@@ -79,25 +98,43 @@
     } catch { return null; }
   }
 
-  // ── Status helpers ───────────────────────────────────────────────────────
+  function normalizeMediaType(item) {
+    return item?.mediaType || item?.type || item?.mediaInfo?.mediaType || 'movie';
+  }
+
+  function normalizeTitle(item) {
+    return item?.title || item?.name || 'Unknown';
+  }
+
+  function normalizeYear(item) {
+    const value = item?.releaseDate || item?.firstAirDate || item?.release_date || item?.first_air_date || '';
+    return String(value).slice(0, 4);
+  }
+
+  function normalizePoster(item, size) {
+    if (item?.posterPath) {
+      return 'https://image.tmdb.org/t/p/' + size + item.posterPath;
+    }
+    return null;
+  }
 
   function statusInfo(status, mediaType) {
     switch (status) {
       case Status.AVAILABLE:
-        return { label: '✓ In Library', color: '#4caf50', disabled: true };
+        return { label: 'In Library', color: '#4caf50', disabled: true };
       case Status.PENDING:
       case Status.PROCESSING:
         return mediaType === 'tv'
           ? { label: 'Edit Request', color: '#ff9800', disabled: false }
-          : { label: '🔔 Requested', color: '#ff9800', disabled: true };
+          : { label: 'Requested', color: '#ff9800', disabled: true };
       case Status.PARTIAL:
         return mediaType === 'tv'
           ? { label: 'Request Seasons', color: '#ff9800', disabled: false }
-          : { label: '🔔 Partial', color: '#ff9800', disabled: true };
+          : { label: 'Partial', color: '#ff9800', disabled: true };
       default:
         return mediaType === 'tv'
           ? { label: 'Request Seasons', color: '#00a4dc', disabled: false }
-          : { label: '+ Request', color: '#00a4dc', disabled: false };
+          : { label: 'Request', color: '#00a4dc', disabled: false };
     }
   }
 
@@ -145,9 +182,7 @@
           name: season.name || ('Season ' + seasonNumber),
           episodeCount: season.episodeCount,
           status: status,
-          selected: requested.size
-            ? requested.has(seasonNumber)
-            : status !== Status.AVAILABLE
+          selected: requested.size ? requested.has(seasonNumber) : status !== Status.AVAILABLE
         };
       });
   }
@@ -160,7 +195,7 @@
       const overlay = document.createElement('div');
       overlay.id = 'js-seerr-seasons';
       overlay.style.cssText = [
-        'position:fixed', 'inset:0', 'z-index:100000',
+        'position:fixed', 'inset:0', 'z-index:100001',
         'background:rgba(0,0,0,.82)',
         'display:flex', 'align-items:center', 'justify-content:center',
         'padding:20px'
@@ -226,7 +261,7 @@
     if (mediaType === 'tv') {
       const seasons = await openSeasonPicker(data);
       if (!seasons?.length) return false;
-      button.textContent = 'Requesting…';
+      button.textContent = 'Requesting...';
       button.disabled = true;
       return Boolean(await seerrRequest(mediaType, mediaId, {
         requestId: requestId,
@@ -234,14 +269,10 @@
       }));
     }
 
-    button.textContent = 'Requesting…';
+    button.textContent = 'Requesting...';
     button.disabled = true;
-    return Boolean(await seerrRequest(mediaType, mediaId, {
-      requestId: requestId
-    }));
+    return Boolean(await seerrRequest(mediaType, mediaId, { requestId: requestId }));
   }
-
-  // ── Config page ──────────────────────────────────────────────────────────
 
   function setConfigStatus(view, msg, ok) {
     const el = view.querySelector('#statusMsg');
@@ -322,8 +353,6 @@
     bindConfigPage(document.getElementById('jellySeerrConfigPage'));
   }
 
-  // ── Detail page button ───────────────────────────────────────────────────
-
   function btnStyle(color) {
     return [
       'margin:4px 8px 4px 0', 'padding:7px 18px',
@@ -335,36 +364,31 @@
     ].join(';');
   }
 
-  // Jellyfin's detail page button container shifts between versions —
-  // try several selectors and fall back to inserting after the play button.
   function findDetailContainer() {
     const selectors = [
       '.detailButtons',
       '.itemDetailButtons',
       '[class*="detailButton"]',
-      '[class*="DetailButton"]',
+      '[class*="DetailButton"]'
     ];
+
     for (const sel of selectors) {
       const el = document.querySelector(sel);
       if (el) return el;
     }
-    // Fallback: find a recognised action button and use its parent
+
     const known = ['Play', 'Shuffle', 'Trailer', 'More'].map(t =>
       document.querySelector('button[title="' + t + '"]')
     ).find(Boolean);
     return known ? known.parentElement : null;
   }
 
-  let lastDetailId = null;
-  let retryTimer = null;
-
   async function injectDetailButton() {
-    if (!isDetailPage()) return;
+    if (!isDetailPage() || isDiscoverRoute()) return;
 
     const itemId = getItemId();
     if (!itemId) return;
 
-    // Remove stale button if navigated to a new item
     if (itemId !== lastDetailId) {
       document.getElementById('js-request-btn')?.remove();
     }
@@ -377,7 +401,6 @@
     }
 
     lastDetailId = itemId;
-
     const item = await getJellyfinItem(itemId);
     if (!item?.ProviderIds?.Tmdb) return;
     if (!['Movie', 'Series'].includes(item.Type)) return;
@@ -387,7 +410,7 @@
 
     const btn = document.createElement('button');
     btn.id = 'js-request-btn';
-    btn.textContent = '…';
+    btn.textContent = '...';
     btn.disabled = true;
     btn.style.cssText = btnStyle('#555');
     container.appendChild(btn);
@@ -412,7 +435,7 @@
 
         const refreshed = await seerrStatus(mediaType, tmdbId);
         if (!refreshed) {
-          btn.textContent = '✕ Failed — retry';
+          btn.textContent = 'Failed - retry';
           btn.style.cssText = btnStyle('#e53935');
           btn.disabled = false;
           return;
@@ -426,176 +449,287 @@
     }
   }
 
-  // ── Search modal ─────────────────────────────────────────────────────────
+  function getDrawerContainer() {
+    return document.querySelector('.mainDrawer .scrollContainer')
+      || document.querySelector('.mainDrawer .drawerContent')
+      || document.querySelector('.mainDrawer');
+  }
 
-  function buildResultCard(item) {
-    const tmdbId = item.id;
-    const mediaType = item.mediaType; // 'movie' | 'tv'
-    const title = item.title || item.name || 'Unknown';
-    const year = (item.releaseDate || item.firstAirDate || '').slice(0, 4);
-    const poster = item.posterPath
-      ? 'https://image.tmdb.org/t/p/w92' + item.posterPath
-      : null;
-    const info = statusInfo(item.mediaInfo ? item.mediaInfo.status : Status.UNKNOWN, mediaType);
+  function injectDiscoverMenuLink() {
+    const drawer = getDrawerContainer();
+    if (!drawer || document.getElementById('js-seerr-nav')) return;
 
-    const card = document.createElement('div');
-    card.style.cssText = [
-      'display:flex', 'align-items:center', 'gap:12px',
-      'background:#1c1c1c', 'border-radius:8px', 'padding:10px',
-    ].join(';');
-
-    const img = poster
-      ? '<img src="' + poster + '" style="width:46px;height:69px;border-radius:4px;object-fit:cover;flex-shrink:0" />'
-      : '<div style="width:46px;height:69px;background:#333;border-radius:4px;flex-shrink:0"></div>';
-
-    card.innerHTML = img + [
-      '<div style="flex:1;min-width:0">',
-      '  <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(title) + '</div>',
-      '  <div style="font-size:12px;color:#aaa;margin-top:2px">' + escHtml(year) + ' · ' + (mediaType === 'tv' ? 'TV Show' : 'Movie') + '</div>',
-      '</div>',
-      '<button style="' + btnStyle(info.color) + ';white-space:nowrap"' + (info.disabled ? ' disabled' : '') + '>',
-      escHtml(info.label),
-      '</button>',
+    const link = document.createElement('a');
+    link.id = 'js-seerr-nav';
+    link.href = DISCOVER_ROUTE;
+    link.className = 'navMenuOption lnkJellySeerrDiscover';
+    link.style.cssText = 'display:flex;align-items:center;gap:1em;';
+    link.innerHTML = [
+      '<span class="material-icons navMenuOptionIcon" aria-hidden="true">explore</span>',
+      '<span class="navMenuOptionText">Discover</span>'
     ].join('');
 
-    const btn = card.querySelector('button');
-    if (!info.disabled) {
-      btn.addEventListener('click', async () => {
-        const data = await seerrStatus(mediaType, tmdbId);
-        if (!data) {
-          btn.textContent = '✕ Failed';
-          btn.style.background = '#e53935';
-          btn.disabled = false;
-          return;
-        }
+    const navItems = drawer.querySelectorAll('.navMenuOption');
+    const anchorTarget = navItems.length ? navItems[navItems.length - 1] : null;
+    if (anchorTarget?.parentElement) {
+      anchorTarget.parentElement.insertBefore(link, anchorTarget.nextSibling);
+    } else {
+      drawer.appendChild(link);
+    }
+  }
 
-        const result = await submitRequest(btn, mediaType, tmdbId, data);
-        if (!result) {
-          const reset = statusInfo(data?.mediaInfo?.status, mediaType);
-          btn.textContent = reset.label;
-          btn.style.background = reset.color;
-          btn.disabled = reset.disabled;
-          return;
-        }
+  function updateDiscoverMenuState() {
+    const link = document.getElementById('js-seerr-nav');
+    if (!link) return;
 
-        const refreshed = await seerrStatus(mediaType, tmdbId);
-        if (refreshed) {
-          const done = statusInfo(refreshed?.mediaInfo?.status, mediaType);
-          btn.textContent = done.label;
-          btn.style.background = done.color;
-          btn.disabled = done.disabled;
+    if (isDiscoverRoute()) {
+      link.classList.add('navMenuOption-selected');
+      link.setAttribute('aria-current', 'page');
+    } else {
+      link.classList.remove('navMenuOption-selected');
+      link.removeAttribute('aria-current');
+    }
+  }
+
+  async function loadDiscoverSections() {
+    if (discoverPageLoading) return;
+    discoverPageLoading = true;
+    renderDiscoverPage();
+
+    const [trending, movies, tv, upcomingMovies, upcomingTv] = await Promise.all([
+      seerrDiscover('trending'),
+      seerrDiscover('movies'),
+      seerrDiscover('tv'),
+      seerrDiscover('upcoming-movies'),
+      seerrDiscover('upcoming-tv')
+    ]);
+
+    discoverState.sections = {
+      trending: trending?.results || [],
+      movies: movies?.results || [],
+      tv: tv?.results || [],
+      upcomingMovies: upcomingMovies?.results || [],
+      upcomingTv: upcomingTv?.results || []
+    };
+    discoverPageLoading = false;
+    renderDiscoverPage();
+  }
+
+  async function loadDiscoverSearch() {
+    const query = discoverState.query.trim();
+    if (!query) {
+      discoverState.loadingSearch = false;
+      discoverState.searchResults = null;
+      renderDiscoverPage();
+      return;
+    }
+
+    discoverState.loadingSearch = true;
+    renderDiscoverPage();
+    const data = await seerrSearch(query);
+    discoverState.searchResults = data?.results || [];
+    discoverState.loadingSearch = false;
+    renderDiscoverPage();
+  }
+
+  function ensureDiscoverPage() {
+    if (!isDiscoverRoute()) {
+      document.getElementById('js-seerr-discover')?.remove();
+      return;
+    }
+
+    let page = document.getElementById('js-seerr-discover');
+    if (!page) {
+      page = document.createElement('div');
+      page.id = 'js-seerr-discover';
+      page.style.cssText = [
+        'position:fixed', 'inset:0', 'z-index:9998',
+        'background:radial-gradient(circle at top, rgba(0,164,220,.16), transparent 28%), linear-gradient(180deg, rgba(12,12,12,.98), rgba(8,8,8,.98))',
+        'overflow:auto', 'padding:72px 20px 28px', 'color:#fff'
+      ].join(';');
+      document.body.appendChild(page);
+    }
+
+    renderDiscoverPage();
+    if (!discoverState.sections && !discoverPageLoading) {
+      loadDiscoverSections();
+    }
+  }
+
+  function renderDiscoverSection(title, items) {
+    if (!items?.length) return '';
+
+    const cards = items.map(item => renderDiscoverCard(item)).join('');
+    return [
+      '<section style="margin-top:28px">',
+      '  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">',
+      '    <h2 style="margin:0;font-size:22px;font-weight:700">' + escHtml(title) + '</h2>',
+      '  </div>',
+      '  <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:6px">' + cards + '</div>',
+      '</section>'
+    ].join('');
+  }
+
+  function renderDiscoverCard(item) {
+    const mediaType = normalizeMediaType(item);
+    const title = normalizeTitle(item);
+    const year = normalizeYear(item);
+    const poster = normalizePoster(item, 'w342');
+    const info = statusInfo(item?.mediaInfo?.status, mediaType);
+
+    return [
+      '<article style="flex:0 0 180px;display:flex;flex-direction:column;gap:10px">',
+      poster
+        ? '<img src="' + poster + '" alt="' + escHtml(title) + '" style="width:180px;height:270px;object-fit:cover;border-radius:12px;background:#222" />'
+        : '<div style="width:180px;height:270px;border-radius:12px;background:#222"></div>',
+      '<div style="display:flex;flex-direction:column;gap:6px">',
+      '  <div style="font-weight:700;font-size:15px;line-height:1.3">' + escHtml(title) + '</div>',
+      '  <div style="font-size:12px;color:#aaa">' + escHtml((year ? year + ' · ' : '') + (mediaType === 'tv' ? 'TV Show' : 'Movie')) + '</div>',
+      '  <button type="button" data-request-media="' + escHtml(mediaType) + '" data-request-id="' + item.id + '" style="margin-top:2px;padding:9px 12px;border:none;border-radius:8px;background:' + info.color + ';color:#fff;font-weight:600;cursor:pointer"' + (info.disabled ? ' disabled' : '') + '>',
+      escHtml(info.label),
+      '  </button>',
+      '</div>',
+      '</article>'
+    ].join('');
+  }
+
+  function renderSearchResults(items) {
+    if (discoverState.loadingSearch) {
+      return '<div style="padding:32px 0;color:#aaa">Searching Seerr...</div>';
+    }
+
+    if (!items?.length) {
+      return '<div style="padding:32px 0;color:#aaa">No results found.</div>';
+    }
+
+    return [
+      '<section style="margin-top:24px">',
+      '  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px">',
+      items.map(item => renderDiscoverCard(item)).join(''),
+      '  </div>',
+      '</section>'
+    ].join('');
+  }
+
+  function renderDiscoverBody() {
+    if (discoverState.query.trim()) {
+      return renderSearchResults(discoverState.searchResults);
+    }
+
+    if (discoverPageLoading && !discoverState.sections) {
+      return '<div style="padding:32px 0;color:#aaa">Loading Discover...</div>';
+    }
+
+    const sections = discoverState.sections || {};
+    return [
+      renderDiscoverSection('Trending', sections.trending),
+      renderDiscoverSection('Popular Movies', sections.movies),
+      renderDiscoverSection('Popular TV', sections.tv),
+      renderDiscoverSection('Upcoming Movies', sections.upcomingMovies),
+      renderDiscoverSection('Upcoming TV', sections.upcomingTv)
+    ].join('');
+  }
+
+  function bindDiscoverPage(page) {
+    const search = page.querySelector('#js-seerr-discover-search');
+    const closeBtn = page.querySelector('#js-seerr-discover-close');
+    const refreshBtn = page.querySelector('#js-seerr-discover-refresh');
+
+    if (search) {
+      search.value = discoverState.query;
+      search.addEventListener('input', event => {
+        discoverState.query = event.target.value;
+        clearTimeout(discoverSearchTimer);
+        discoverSearchTimer = setTimeout(loadDiscoverSearch, 300);
+      });
+    }
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        window.location.hash = getRouteHrefWithoutDiscover();
+      });
+    }
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async () => {
+        discoverState.sections = null;
+        if (discoverState.query.trim()) {
+          await loadDiscoverSearch();
         } else {
-          btn.textContent = '✕ Failed';
-          btn.style.background = '#e53935';
-          btn.disabled = false;
+          await loadDiscoverSections();
         }
       });
     }
 
-    return card;
+    Array.from(page.querySelectorAll('[data-request-id]')).forEach(button => {
+      if (button.disabled) return;
+      button.addEventListener('click', async () => {
+        if (discoverRequestInFlight) return;
+        discoverRequestInFlight = true;
+        const mediaType = button.getAttribute('data-request-media');
+        const mediaId = Number(button.getAttribute('data-request-id'));
+        const data = await seerrStatus(mediaType, mediaId);
+
+        if (!data) {
+          button.textContent = 'Failed';
+          button.style.background = '#e53935';
+          button.disabled = false;
+          discoverRequestInFlight = false;
+          return;
+        }
+
+        const result = await submitRequest(button, mediaType, mediaId, data);
+        if (result) {
+          if (discoverState.query.trim()) {
+            await loadDiscoverSearch();
+          } else {
+            await loadDiscoverSections();
+          }
+        } else {
+          const reset = statusInfo(data?.mediaInfo?.status, mediaType);
+          button.textContent = reset.label;
+          button.style.background = reset.color;
+          button.disabled = reset.disabled;
+        }
+
+        discoverRequestInFlight = false;
+      });
+    });
   }
 
-  async function runSearch(query, resultsEl) {
-    if (!query) { resultsEl.innerHTML = ''; return; }
-    resultsEl.innerHTML = '<div style="text-align:center;padding:24px;color:#888">Searching…</div>';
+  function renderDiscoverPage() {
+    const page = document.getElementById('js-seerr-discover');
+    if (!page) return;
 
-    const data = await seerrSearch(query);
-    resultsEl.innerHTML = '';
-
-    if (!data?.results?.length) {
-      resultsEl.innerHTML = '<div style="text-align:center;padding:24px;color:#888">No results found</div>';
-      return;
-    }
-
-    data.results.forEach(item => resultsEl.appendChild(buildResultCard(item)));
-  }
-
-  function openModal() {
-    if (document.getElementById('js-seerr-modal')) return;
-
-    const overlay = document.createElement('div');
-    overlay.id = 'js-seerr-modal';
-    overlay.style.cssText = [
-      'position:fixed', 'inset:0', 'z-index:99999',
-      'background:rgba(0,0,0,.87)',
-      'display:flex', 'flex-direction:column', 'align-items:center',
-      'padding:40px 16px 16px',
-      'font-family:inherit', 'color:#fff',
-    ].join(';');
-
-    overlay.innerHTML = [
-      '<div style="width:100%;max-width:740px;display:flex;flex-direction:column;gap:12px">',
-      '  <div style="display:flex;gap:10px;align-items:center">',
-      '    <input id="js-seerr-input" placeholder="Search movies &amp; TV shows…"',
-      '      autocomplete="off"',
-      '      style="flex:1;padding:11px 14px;border-radius:6px;border:none;background:#2a2a2a;color:#fff;font-size:15px" />',
-      '    <button id="js-seerr-close"',
-      '      style="padding:9px 14px;border:none;border-radius:6px;background:#444;color:#fff;cursor:pointer;font-size:16px">✕</button>',
+    page.innerHTML = [
+      '<div style="width:min(1280px, calc(100% - 12px));margin:0 auto 0;display:flex;flex-direction:column;gap:10px">',
+      '  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">',
+      '    <div>',
+      '      <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#7bd6f2">JellySeerr</div>',
+      '      <h1 style="margin:4px 0 0;font-size:38px;line-height:1.05">Discover</h1>',
+      '    </div>',
+      '    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">',
+      '      <button id="js-seerr-discover-refresh" type="button" style="padding:10px 14px;border:none;border-radius:999px;background:#1f2b32;color:#fff;cursor:pointer">Refresh</button>',
+      '      <button id="js-seerr-discover-close" type="button" style="padding:10px 14px;border:none;border-radius:999px;background:#333;color:#fff;cursor:pointer">Close</button>',
+      '    </div>',
       '  </div>',
-      '  <div id="js-seerr-results" style="overflow-y:auto;max-height:calc(100vh - 150px);display:flex;flex-direction:column;gap:8px"></div>',
-      '</div>',
+      '  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px">',
+      '    <input id="js-seerr-discover-search" type="search" placeholder="Search Seerr for movies and TV shows..." autocomplete="off" style="flex:1;min-width:260px;padding:14px 16px;border:none;border-radius:14px;background:#1a1a1a;color:#fff;font-size:15px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)" />',
+      '  </div>',
+      renderDiscoverBody(),
+      '</div>'
     ].join('');
 
-    document.body.appendChild(overlay);
-
-    const input = overlay.querySelector('#js-seerr-input');
-    const results = overlay.querySelector('#js-seerr-results');
-    const closeBtn = overlay.querySelector('#js-seerr-close');
-
-    closeBtn.addEventListener('click', () => overlay.remove());
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-    document.addEventListener('keydown', function esc(e) {
-      if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', esc); }
-    });
-
-    let searchTimer;
-    input.addEventListener('input', () => {
-      clearTimeout(searchTimer);
-      const q = input.value.trim();
-      searchTimer = setTimeout(() => runSearch(q, results), 380);
-    });
-
-    input.focus();
+    bindDiscoverPage(page);
   }
-
-  // ── Floating action button ────────────────────────────────────────────────
-
-  function injectFab() {
-    if (document.getElementById('js-seerr-fab')) return;
-    const fab = document.createElement('button');
-    fab.id = 'js-seerr-fab';
-    fab.title = 'Request via Seerr';
-    fab.style.cssText = [
-      'position:fixed', 'bottom:24px', 'right:24px',
-      'width:52px', 'height:52px', 'border-radius:50%',
-      'background:#00a4dc', 'color:#fff',
-      'border:none', 'cursor:pointer',
-      'display:flex', 'align-items:center', 'justify-content:center',
-      'box-shadow:0 4px 14px rgba(0,0,0,.55)',
-      'z-index:9999', 'transition:transform .15s',
-    ].join(';');
-    fab.innerHTML = [
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="22" height="22">',
-      '<path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61',
-      '0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01',
-      '5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>',
-      '</svg>',
-    ].join('');
-    fab.addEventListener('mouseenter', () => { fab.style.transform = 'scale(1.1)'; });
-    fab.addEventListener('mouseleave', () => { fab.style.transform = 'scale(1)'; });
-    fab.addEventListener('click', openModal);
-    document.body.appendChild(fab);
-  }
-
-  // ── SPA navigation watcher ───────────────────────────────────────────────
-
-  let lastHref = '';
 
   const observer = new MutationObserver(() => {
     const href = window.location.href;
 
     initConfigPage();
-    injectFab();
+    injectDiscoverMenuLink();
+    updateDiscoverMenuState();
+    ensureDiscoverPage();
 
     if (href !== lastHref) {
       lastHref = href;
@@ -608,8 +742,6 @@
     }
   });
 
-  // ── Utilities ────────────────────────────────────────────────────────────
-
   function escHtml(str) {
     return String(str)
       .replace(/&/g, '&amp;')
@@ -618,10 +750,12 @@
       .replace(/"/g, '&quot;');
   }
 
-  // ── Boot ─────────────────────────────────────────────────────────────────
-
   function init() {
-    if (!document.body) { setTimeout(init, 100); return; }
+    if (!document.body) {
+      setTimeout(init, 100);
+      return;
+    }
+
     observer.observe(document.body, { childList: true, subtree: true });
     document.addEventListener('viewshow', event => {
       if (event.target && event.target.id === 'jellySeerrConfigPage') {
@@ -629,8 +763,11 @@
         loadConfigPage(event.target);
       }
     });
+
     initConfigPage();
-    injectFab();
+    injectDiscoverMenuLink();
+    updateDiscoverMenuState();
+    ensureDiscoverPage();
     if (isDetailPage()) setTimeout(injectDetailButton, 800);
   }
 
@@ -639,5 +776,4 @@
   } else {
     init();
   }
-
 }());

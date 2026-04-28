@@ -654,22 +654,22 @@
     const container = getBrowseButtonContainer();
     if (!template || !container) return;
 
-    const button = template.cloneNode(true);
+    const button = document.createElement('button');
     button.id = 'js-seerr-browse-btn';
-    button.removeAttribute('href');
-    button.removeAttribute('is');
-    button.removeAttribute('aria-current');
+    button.type = 'button';
     button.title = 'Discover';
     button.setAttribute('aria-label', 'Discover');
-    button.innerHTML = '<span class="material-icons" aria-hidden="true">explore</span><span>Discover</span>';
-    button.onclick = null;
-    button.className = button.className
-      .split(/\s+/)
-      .filter(name => name && !/home|favorite|favourite/i.test(name))
+    button.className = Array.from(template.classList)
+      .filter(name => name && !/active|selected|home|favorite|favourite/i.test(name))
       .join(' ');
+    if (!button.className.trim()) {
+      button.className = 'emby-tab-button emby-button';
+    }
+    button.innerHTML = '<span class="material-icons" aria-hidden="true">explore</span><span>Discover</span>';
     button.classList.remove('button-submit');
     button.classList.remove('selected');
     button.classList.remove('navMenuOption-selected');
+    button.classList.remove('emby-tab-button-active');
     button.addEventListener('click', event => {
       event.preventDefault();
       window.location.hash = DISCOVER_ROUTE;

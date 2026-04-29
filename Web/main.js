@@ -770,6 +770,10 @@
     return getHomeSections(container).find(section => pattern.test(getSectionText(section))) || null;
   }
 
+  function isComingSoonPlacedInContainer(container, section) {
+    return section.parentElement === container;
+  }
+
   function placeComingSoonSection(container, section) {
     if (comingSoonPosition === 'bottom') {
       container.appendChild(section);
@@ -854,7 +858,7 @@
       comingSoonPosition,
       comingSoonItems.map(item => item.key + ':' + item.title + ':' + (item.poster || '')).join('|')
     ].join('::');
-    if (existing?.dataset.signature === signature) return;
+    if (existing?.dataset.signature === signature && isComingSoonPlacedInContainer(container, existing)) return;
 
     section.id = 'js-seerr-coming-soon';
     section.className = 'js-seerr-comingSoonSection';

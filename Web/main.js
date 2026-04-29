@@ -216,7 +216,7 @@
 
   function isHomeRoute() {
     const hash = window.location.hash || '';
-    return !isDiscoverRoute() && /#\/home\.html|#\/?$/i.test(hash || '#/');
+    return !isDiscoverRoute() && /^#!?\/(?:home(?:\.html)?|)(?:[?&].*)?$/i.test(hash || '#/');
   }
 
   function findBrowseButton(labelPattern) {
@@ -228,12 +228,12 @@
   }
 
   function getRouteHrefWithoutDiscover() {
-    if (window.location.hash.startsWith('#/') && !isDiscoverRoute()) return window.location.hash;
+    if (/^#!?\//.test(window.location.hash) && !isDiscoverRoute()) return window.location.hash;
     return lastNonDiscoverHash || '#/home.html';
   }
 
   function rememberNonDiscoverRoute() {
-    if (window.location.hash.startsWith('#/') && !isDiscoverRoute()) {
+    if (/^#!?\//.test(window.location.hash) && !isDiscoverRoute()) {
       lastNonDiscoverHash = window.location.hash;
     }
   }

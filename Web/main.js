@@ -294,6 +294,24 @@
     } catch { return null; }
   }
 
+  async function seerrComingSoonRequests() {
+    const responses = await Promise.all([
+      seerrRequests('processing'),
+      seerrRequests('all')
+    ]);
+    const byKey = new Map();
+
+    responses
+      .flatMap(normalizeRequestItems)
+      .filter(isComingSoonRequest)
+      .forEach(request => {
+        const key = getRequestProcessingKey(request);
+        if (key) byKey.set(key, request);
+      });
+
+    return Array.from(byKey.values());
+  }
+
   async function jellyfinLatestLibraryItems() {
     const userId = getUserId();
     if (!userId) return [];
@@ -575,11 +593,11 @@
     return posterUrl(media?.posterPath || media?.poster_path || request?.posterPath || request?.poster_path);
   }
 
-  function isProcessingRequest(request) {
+  function isComingSoonRequest(request) {
     const media = getRequestMedia(request);
     const status = media?.status ?? request?.status;
     if (status == null) return true;
-    return Number(status) === Status.PROCESSING;
+    return [Status.PENDING, Status.PROCESSING, Status.PARTIAL].includes(Number(status));
   }
 
   function findYouTubeTrailer(value, seen = new Set()) {
@@ -673,15 +691,14 @@
   }
 
   async function pollProcessingRequests() {
-    const data = await seerrRequests('processing');
-    const processing = normalizeRequestItems(data).filter(isProcessingRequest);
-    if (!processing.length) {
+    const requests = await seerrComingSoonRequests();
+    if (!requests.length) {
       comingSoonItems = [];
       renderComingSoonSection();
       return;
     }
 
-    comingSoonItems = await Promise.all(processing.map(buildComingSoonItem));
+    comingSoonItems = await Promise.all(requests.map(buildComingSoonItem));
     renderComingSoonSection();
   }
 

@@ -26,6 +26,7 @@
   let comingSoonItems = [];
   let comingSoonPosition = 'top';
   let suppressBrowseAnchorRedirect = false;
+  let discoverExitRefreshTimer = null;
   let lastNonDiscoverHash = '#/home.html';
   const discoverState = {
     sections: null,
@@ -216,6 +217,14 @@
   function isHomeRoute() {
     const hash = window.location.hash || '';
     return !isDiscoverRoute() && /#\/home\.html|#\/?$/i.test(hash || '#/');
+  }
+
+  function findBrowseButton(labelPattern) {
+    return Array.from(document.querySelectorAll('button,a')).find(el => {
+      if (!(el instanceof HTMLElement)) return false;
+      if (el.id === 'js-seerr-browse-btn' || el.closest('#js-seerr-discover')) return false;
+      return labelPattern.test((el.textContent || '').trim());
+    }) || null;
   }
 
   function getRouteHrefWithoutDiscover() {
@@ -1129,7 +1138,7 @@
         event.stopPropagation();
 
         const targetLabel = text;
-        const targetHash = getRouteHrefWithoutDiscover();
+        const targetHash = /^Home$/i.test(targetLabel) ? '#/home.html' : getRouteHrefWithoutDiscover();
         window.location.hash = targetHash;
 
         setTimeout(() => {
@@ -1285,6 +1294,20 @@
     }
   }
 
+  function refreshHomeAfterDiscoverExit() {
+    clearTimeout(discoverExitRefreshTimer);
+    discoverExitRefreshTimer = setTimeout(() => {
+      if (!isHomeRoute() || isDiscoverRoute()) return;
+
+      const homeButton = findBrowseButton(/^Home$/i);
+      if (homeButton) {
+        suppressBrowseAnchorRedirect = true;
+        homeButton.click();
+        setTimeout(() => { suppressBrowseAnchorRedirect = false; }, 0);
+      }
+    }, 80);
+  }
+
   function applyDiscoverRequestState(button, mediaType, data) {
     const info = statusInfo(data?.mediaInfo?.status, mediaType);
     button.textContent = info.label;
@@ -1359,12 +1382,16 @@
   function ensureDiscoverPage() {
     if (!isDiscoverRoute()) {
       const existing = document.getElementById('js-seerr-discover');
+      const wasDiscoverActive = Boolean(existing) || discoverMounted;
       const host = existing?.parentElement;
       if (host) {
         setDiscoverHostVisibility(host, false);
       }
       existing?.remove();
       discoverMounted = false;
+      if (wasDiscoverActive && isHomeRoute()) {
+        refreshHomeAfterDiscoverExit();
+      }
       return;
     }
 

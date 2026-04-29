@@ -87,10 +87,10 @@
       '.js-seerr-toast { min-width:280px; max-width:360px; background:rgba(24,24,24,.96); color:#fff; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.35); border:1px solid var(--js-seerr-border); padding:.95rem 1rem; transform:translateY(-6px); opacity:0; animation: jsSeerrToastIn .2s ease forwards; }',
       '.js-seerr-toastTitle { font-size:.9rem; color:var(--js-seerr-accent); margin-bottom:.25rem; }',
       '.js-seerr-toastBody { font-size:.98rem; line-height:1.35; }',
-      '.js-seerr-comingSoonSection { margin:1.5rem 0 2rem; padding:0 3.3%; color:var(--theme-text-color, #fff); }',
+      '.js-seerr-comingSoonSection { margin:1.25rem 0 .9rem; padding:0 3.3%; color:var(--theme-text-color, #fff); }',
       '.js-seerr-comingSoonHeader { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:0 0 .75rem; }',
       '.js-seerr-comingSoonTitle { margin:0; font-size:1.5rem; line-height:1.2; font-weight:600; }',
-      '.js-seerr-comingSoonRow { display:flex; gap:1rem; overflow-x:auto; padding:.2rem 0 .7rem; }',
+      '.js-seerr-comingSoonRow { display:flex; gap:1rem; overflow-x:auto; overscroll-behavior-x:contain; touch-action:pan-x; padding:.2rem 0 .35rem; }',
       '.js-seerr-comingSoonCard { flex:0 0 170px; max-width:170px; display:flex; flex-direction:column; gap:.55rem; color:inherit; }',
       '.js-seerr-comingSoonPosterWrap { position:relative; width:100%; aspect-ratio:2/3; border:none; border-radius:8px; overflow:hidden; background:var(--js-seerr-surface); color:#fff; padding:0; cursor:pointer; box-shadow:0 0 0 1px var(--js-seerr-border); }',
       '.js-seerr-comingSoonPoster { width:100%; height:100%; object-fit:cover; display:block; }',
@@ -663,12 +663,22 @@
   }
 
   function showTrailerOverlay(url) {
-    window.open(getYouTubeWatchUrl(url), '_blank', 'noopener');
+    const target = getYouTubeWatchUrl(url);
+    if (isMobileViewport()) {
+      window.location.href = target;
+      return;
+    }
+
+    window.open(target, '_blank', 'noopener');
   }
 
   function getYouTubeWatchUrl(url) {
     const youtubeId = getYouTubeId(url);
     return youtubeId ? 'https://www.youtube.com/watch?v=' + encodeURIComponent(youtubeId) : url;
+  }
+
+  function isMobileViewport() {
+    return window.matchMedia?.('(max-width: 700px), (pointer: coarse)')?.matches === true;
   }
 
   function getYouTubeId(url) {
@@ -813,6 +823,14 @@
   }
 
   function bindComingSoonSection(section) {
+    const row = section.querySelector('.js-seerr-comingSoonRow');
+    if (row && row.dataset.jsSeerrSwipeBound !== 'true') {
+      row.dataset.jsSeerrSwipeBound = 'true';
+      ['touchstart', 'touchmove', 'wheel'].forEach(type => {
+        row.addEventListener(type, event => event.stopPropagation(), { passive: true });
+      });
+    }
+
     Array.from(section.querySelectorAll('[data-coming-soon-key]')).forEach(button => {
       button.addEventListener('click', () => {
         const key = button.getAttribute('data-coming-soon-key');
@@ -1346,7 +1364,19 @@
         homeButton.click();
         setTimeout(() => { suppressBrowseAnchorRedirect = false; }, 0);
       }
+
+      scheduleComingSoonRenderAfterHomeRemount();
     }, 80);
+  }
+
+  function scheduleComingSoonRenderAfterHomeRemount() {
+    [120, 350, 800, 1400].forEach(delay => {
+      setTimeout(() => {
+        if (isHomeRoute() && !isDiscoverRoute()) {
+          renderComingSoonSection();
+        }
+      }, delay);
+    });
   }
 
   function applyDiscoverRequestState(button, mediaType, data) {

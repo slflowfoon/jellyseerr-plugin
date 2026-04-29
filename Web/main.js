@@ -25,6 +25,7 @@
   let discoverMounted = false;
   let comingSoonItems = [];
   let comingSoonPosition = 'top';
+  let comingSoonRenderRetryTimer = null;
   let suppressBrowseAnchorRedirect = false;
   let discoverExitRefreshTimer = null;
   let lastNonDiscoverHash = '#/home.html';
@@ -842,19 +843,18 @@
 
     const container = getHomeContentContainer();
     if (!container) {
-      setTimeout(renderComingSoonSection, 500);
+      clearTimeout(comingSoonRenderRetryTimer);
+      comingSoonRenderRetryTimer = setTimeout(renderComingSoonSection, 500);
       return;
     }
+    clearTimeout(comingSoonRenderRetryTimer);
 
     const section = existing || document.createElement('section');
     const signature = [
       comingSoonPosition,
       comingSoonItems.map(item => item.key + ':' + item.title + ':' + (item.poster || '')).join('|')
     ].join('::');
-    if (existing?.dataset.signature === signature) {
-      placeComingSoonSection(container, section);
-      return;
-    }
+    if (existing?.dataset.signature === signature) return;
 
     section.id = 'js-seerr-coming-soon';
     section.className = 'js-seerr-comingSoonSection';

@@ -663,27 +663,12 @@
   }
 
   function showTrailerOverlay(url) {
-    const youtubeId = getYouTubeId(url);
-    if (!youtubeId) {
-      window.open(url, '_blank', 'noopener');
-      return;
-    }
+    window.open(getYouTubeWatchUrl(url), '_blank', 'noopener');
+  }
 
-    document.getElementById('js-seerr-trailer-overlay')?.remove();
-    const overlay = document.createElement('div');
-    overlay.id = 'js-seerr-trailer-overlay';
-    overlay.className = 'js-seerr-trailerOverlay';
-    overlay.innerHTML = [
-      '<div class="js-seerr-trailerDialog">',
-      '  <iframe class="js-seerr-trailerFrame" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen src="https://www.youtube.com/embed/' + escHtml(youtubeId) + '?autoplay=1"></iframe>',
-      '  <button class="js-seerr-trailerClose" type="button">Close</button>',
-      '</div>'
-    ].join('');
-    overlay.addEventListener('click', event => {
-      if (event.target === overlay) overlay.remove();
-    });
-    overlay.querySelector('.js-seerr-trailerClose')?.addEventListener('click', () => overlay.remove());
-    document.body.appendChild(overlay);
+  function getYouTubeWatchUrl(url) {
+    const youtubeId = getYouTubeId(url);
+    return youtubeId ? 'https://www.youtube.com/watch?v=' + encodeURIComponent(youtubeId) : url;
   }
 
   function getYouTubeId(url) {

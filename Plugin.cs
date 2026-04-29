@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
@@ -52,14 +53,28 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
         var content = File.ReadAllText(indexPath);
         const string marker = "plugins/JellySeerr/ClientScript";
+        var version = GetType().Assembly.GetName().Version?.ToString() ?? "1";
+        var tag = $"""<script src="/plugins/JellySeerr/ClientScript?v={Uri.EscapeDataString(version)}" defer></script>""";
 
         if (content.Contains(marker, StringComparison.Ordinal))
         {
-            _logger.LogDebug("JellySeerr: index.html already patched");
+            var updated = Regex.Replace(
+                content,
+                """<script\b[^>]*\bsrc=["']/plugins/JellySeerr/ClientScript(?:\?[^"']*)?["'][^>]*>\s*</script>""",
+                tag,
+                RegexOptions.IgnoreCase);
+
+            if (!string.Equals(content, updated, StringComparison.Ordinal))
+            {
+                File.WriteAllText(indexPath, updated);
+                _logger.LogInformation("JellySeerr: Updated Jellyfin web client script version");
+                return;
+            }
+
+            _logger.LogDebug("JellySeerr: index.html already patched with current script tag");
             return;
         }
 
-        const string tag = """<script src="/plugins/JellySeerr/ClientScript" defer></script>""";
         content = content.Replace("</head>", tag + "</head>", StringComparison.OrdinalIgnoreCase);
         File.WriteAllText(indexPath, content);
         _logger.LogInformation("JellySeerr: Patched Jellyfin web client");

@@ -41,6 +41,9 @@ public class SeerrController : ControllerBase
 
         if (stream is null) return NotFound();
         using var reader = new System.IO.StreamReader(stream);
+        Response.Headers.CacheControl = "no-store, no-cache, max-age=0, must-revalidate";
+        Response.Headers.Pragma = "no-cache";
+        Response.Headers.Expires = "0";
         return Content(reader.ReadToEnd(), "application/javascript; charset=utf-8");
     }
 

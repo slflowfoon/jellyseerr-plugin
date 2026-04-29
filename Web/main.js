@@ -6,7 +6,12 @@
   const DISCOVER_ROUTE = '#/home.html?jellyseerr=discover';
   const Status = { UNKNOWN: 1, PENDING: 2, PROCESSING: 3, PARTIAL: 4, AVAILABLE: 5 };
   const TRACKED_REQUESTS_KEY = 'jellyseerr_tracked_requests';
+  const LATEST_LIBRARY_ITEMS_KEY = 'jellyseerr_latest_library_items';
   const REQUEST_POLL_MS = 120000;
+  const PROCESSING_REQUEST_POLL_MS = 120000;
+  const LATEST_LIBRARY_POLL_MS = 60000;
+  const INITIAL_RECENT_TOAST_MS = 10 * 60 * 1000;
+  const MAX_KNOWN_LATEST_ITEMS = 200;
 
   let lastHref = '';
   let lastDetailId = null;
@@ -15,7 +20,11 @@
   let discoverPageLoading = false;
   let discoverRequestInFlight = false;
   let requestPollTimer = null;
+  let processingRequestPollTimer = null;
+  let latestLibraryPollTimer = null;
   let discoverMounted = false;
+  let comingSoonItems = [];
+  let comingSoonPosition = 'top';
   let suppressBrowseAnchorRedirect = false;
   let lastNonDiscoverHash = '#/home.html';
   const discoverState = {
@@ -30,6 +39,17 @@
     try {
       const creds = JSON.parse(localStorage.getItem('jellyfin_credentials') || '{}');
       return creds.Servers?.[0]?.AccessToken || '';
+    } catch { return ''; }
+  }
+
+  function getUserId() {
+    try {
+      const apiUserId = window.ApiClient?.getCurrentUserId?.();
+      if (typeof apiUserId === 'string') return apiUserId;
+      if (window.ApiClient?._serverInfo?.UserId) return window.ApiClient._serverInfo.UserId;
+      if (window.ApiClient?._currentUser?.Id) return window.ApiClient._currentUser.Id;
+      const creds = JSON.parse(localStorage.getItem('jellyfin_credentials') || '{}');
+      return creds.Servers?.[0]?.UserId || creds.Servers?.[0]?.User?.Id || '';
     } catch { return ''; }
   }
 
@@ -65,13 +85,30 @@
       '.js-seerr-toast { min-width:280px; max-width:360px; background:rgba(24,24,24,.96); color:#fff; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.35); border:1px solid var(--js-seerr-border); padding:.95rem 1rem; transform:translateY(-6px); opacity:0; animation: jsSeerrToastIn .2s ease forwards; }',
       '.js-seerr-toastTitle { font-size:.9rem; color:var(--js-seerr-accent); margin-bottom:.25rem; }',
       '.js-seerr-toastBody { font-size:.98rem; line-height:1.35; }',
+      '.js-seerr-comingSoonSection { margin:1.5rem 0 2rem; padding:0 3.3%; color:var(--theme-text-color, #fff); }',
+      '.js-seerr-comingSoonHeader { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:0 0 .75rem; }',
+      '.js-seerr-comingSoonTitle { margin:0; font-size:1.5rem; line-height:1.2; font-weight:600; }',
+      '.js-seerr-comingSoonRow { display:flex; gap:1rem; overflow-x:auto; padding:.2rem 0 .7rem; }',
+      '.js-seerr-comingSoonCard { flex:0 0 170px; max-width:170px; display:flex; flex-direction:column; gap:.55rem; color:inherit; }',
+      '.js-seerr-comingSoonPosterWrap { position:relative; width:100%; aspect-ratio:2/3; border:none; border-radius:8px; overflow:hidden; background:var(--js-seerr-surface); color:#fff; padding:0; cursor:pointer; box-shadow:0 0 0 1px var(--js-seerr-border); }',
+      '.js-seerr-comingSoonPoster { width:100%; height:100%; object-fit:cover; display:block; }',
+      '.js-seerr-comingSoonPosterFallback { width:100%; height:100%; display:flex; align-items:center; justify-content:center; padding:1rem; text-align:center; color:var(--theme-secondary-text-color, #aaa); background:rgba(255,255,255,.04); }',
+      '.js-seerr-comingSoonBadge { position:absolute; left:.5rem; top:.5rem; padding:.28rem .45rem; border-radius:4px; background:rgba(0,0,0,.78); color:#fff; font-size:.72rem; line-height:1; font-weight:700; text-transform:uppercase; }',
+      '.js-seerr-comingSoonPlay { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:3.1rem; height:3.1rem; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.72); color:#fff; box-shadow:0 4px 16px rgba(0,0,0,.4); }',
+      '.js-seerr-comingSoonPlay .material-icons { font-size:2rem; }',
+      '.js-seerr-comingSoonName { font-size:.95rem; line-height:1.25; font-weight:600; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }',
+      '.js-seerr-comingSoonMeta { font-size:.78rem; color:var(--theme-secondary-text-color, #aaa); }',
+      '.js-seerr-trailerOverlay { position:fixed; inset:0; z-index:100003; display:flex; align-items:center; justify-content:center; padding:1.5rem; background:rgba(0,0,0,.86); }',
+      '.js-seerr-trailerDialog { width:min(960px, 96vw); }',
+      '.js-seerr-trailerFrame { width:100%; aspect-ratio:16/9; border:0; background:#000; border-radius:8px; }',
+      '.js-seerr-trailerClose { margin:.75rem 0 0 auto; display:block; border:none; border-radius:4px; padding:.65rem 1rem; background:#333; color:#fff; cursor:pointer; font:inherit; }',
       '#js-seerr-browse-btn { white-space:nowrap; display:inline-flex; align-items:center; gap:.55rem; }',
       '#js-seerr-browse-btn .material-icons { font-size:1.2em; }',
       '#js-seerr-nav { display:flex; align-items:center; }',
       '#js-seerr-nav .navMenuOptionText { margin-left:0 !important; }',
       '#js-seerr-nav .navMenuOptionIcon { margin-right:1.15rem; }',
       '@keyframes jsSeerrToastIn { to { transform:translateY(0); opacity:1; } }',
-      '@media (max-width: 900px) { #js-seerr-discover.page { padding: 1rem 1rem 1.5rem; } .js-seerr-title { font-size:2rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } }'
+      '@media (max-width: 900px) { #js-seerr-discover.page { padding: 1rem 1rem 1.5rem; } .js-seerr-title { font-size:2rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } .js-seerr-comingSoonSection { padding:0 1rem; } .js-seerr-comingSoonCard { flex-basis:140px; max-width:140px; } }'
     ].join('\n');
     document.head.appendChild(style);
   }
@@ -87,6 +124,24 @@
 
   function saveTrackedRequests(items) {
     localStorage.setItem(TRACKED_REQUESTS_KEY, JSON.stringify(items));
+  }
+
+  function loadKnownLatestItems() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(LATEST_LIBRARY_ITEMS_KEY) || 'null');
+      return Array.isArray(parsed) ? parsed.map(String) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveKnownLatestItems(ids) {
+    localStorage.setItem(LATEST_LIBRARY_ITEMS_KEY, JSON.stringify(ids.slice(0, MAX_KNOWN_LATEST_ITEMS)));
+  }
+
+  function normalizeComingSoonPosition(value) {
+    const allowed = ['top', 'after-my-media', 'after-recently-added', 'bottom', 'disabled'];
+    return allowed.includes(value) ? value : 'top';
   }
 
   function trackRequestedItem(mediaType, mediaId, title) {
@@ -158,6 +213,11 @@
     return /\/video|\/playback|#.*video|#.*playback/i.test(window.location.href);
   }
 
+  function isHomeRoute() {
+    const hash = window.location.hash || '';
+    return !isDiscoverRoute() && /#\/home\.html|#\/?$/i.test(hash || '#/');
+  }
+
   function getRouteHrefWithoutDiscover() {
     if (window.location.hash.startsWith('#/') && !isDiscoverRoute()) return window.location.hash;
     return lastNonDiscoverHash || '#/home.html';
@@ -179,6 +239,11 @@
     try {
       return await apiFetch(API + '/Status/' + mediaType + '/' + tmdbId);
     } catch { return null; }
+  }
+
+  async function seerrMediaDetails(mediaType, tmdbId) {
+    if (!tmdbId) return null;
+    return seerrStatus(mediaType === 'tv' ? 'tv' : 'movie', tmdbId);
   }
 
   async function seerrSearch(query) {
@@ -214,6 +279,33 @@
     } catch { return null; }
   }
 
+  async function seerrRequests(filter = 'processing') {
+    try {
+      return await apiFetch(API + '/Requests?filter=' + encodeURIComponent(filter) + '&take=50&skip=0&sort=added');
+    } catch { return null; }
+  }
+
+  async function jellyfinLatestLibraryItems() {
+    const userId = getUserId();
+    if (!userId) return [];
+
+    try {
+      return await apiFetch('/Users/' + encodeURIComponent(userId) + '/Items/Latest?Limit=30&IncludeItemTypes=Movie,Series&Fields=DateCreated,ProviderIds');
+    } catch {
+      return [];
+    }
+  }
+
+  async function loadPluginRuntimeConfig() {
+    try {
+      const cfg = await window.ApiClient.getPluginConfiguration(GUID);
+      comingSoonPosition = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
+      renderComingSoonSection();
+    } catch {
+      comingSoonPosition = 'top';
+    }
+  }
+
   function normalizeMediaType(item) {
     return item?.mediaType || item?.type || item?.mediaInfo?.mediaType || 'movie';
   }
@@ -232,6 +324,12 @@
       return 'https://image.tmdb.org/t/p/' + size + item.posterPath;
     }
     return null;
+  }
+
+  function posterUrl(path, size = 'w342') {
+    if (!path) return null;
+    if (/^https?:\/\//i.test(path)) return path;
+    return 'https://image.tmdb.org/t/p/' + size + path;
   }
 
   function statusInfo(status, mediaType) {
@@ -421,6 +519,368 @@
     requestPollTimer = setInterval(pollTrackedRequests, REQUEST_POLL_MS);
   }
 
+  function normalizeRequestItems(data) {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.results)) return data.results;
+    return [];
+  }
+
+  function getRequestMedia(request) {
+    return request?.media || request?.mediaInfo || request?.requestedMedia || null;
+  }
+
+  function getRequestMediaType(request) {
+    const media = getRequestMedia(request);
+    const value = request?.type || request?.mediaType || media?.mediaType || media?.type || '';
+    return String(value).toLowerCase() === 'tv' ? 'tv' : 'movie';
+  }
+
+  function getRequestTmdbId(request) {
+    const media = getRequestMedia(request);
+    return media?.tmdbId || media?.tmdbid || request?.mediaId || request?.tmdbId || request?.tmdbid || '';
+  }
+
+  function getRequestProcessingKey(request) {
+    const mediaType = getRequestMediaType(request);
+    const tmdbId = getRequestTmdbId(request);
+    return request?.id ? 'request:' + request.id : 'media:' + mediaType + ':' + tmdbId;
+  }
+
+  function getRequestTitle(request) {
+    const media = getRequestMedia(request);
+    return media?.title
+      || media?.name
+      || request?.media?.title
+      || request?.media?.name
+      || request?.title
+      || 'Requested media';
+  }
+
+  function getRequestYear(request) {
+    const media = getRequestMedia(request);
+    return String(media?.releaseDate || media?.firstAirDate || media?.release_date || media?.first_air_date || '').slice(0, 4);
+  }
+
+  function getRequestPoster(request) {
+    const media = getRequestMedia(request);
+    return posterUrl(media?.posterPath || media?.poster_path || request?.posterPath || request?.poster_path);
+  }
+
+  function isProcessingRequest(request) {
+    const media = getRequestMedia(request);
+    const status = media?.status ?? request?.status;
+    if (status == null) return true;
+    return Number(status) === Status.PROCESSING;
+  }
+
+  function findYouTubeTrailer(value, seen = new Set()) {
+    if (!value || typeof value !== 'object' || seen.has(value)) return null;
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      const official = value.find(item => /trailer/i.test(item?.type || item?.name || '') && /youtube/i.test(item?.site || ''));
+      if (official?.key) return 'https://www.youtube.com/watch?v=' + encodeURIComponent(official.key);
+      for (const item of value) {
+        const found = findYouTubeTrailer(item, seen);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    const site = String(value.site || value.provider || '').toLowerCase();
+    if (site === 'youtube' && value.key) {
+      return 'https://www.youtube.com/watch?v=' + encodeURIComponent(value.key);
+    }
+    if (typeof value.url === 'string' && /youtube\.com|youtu\.be/i.test(value.url)) return value.url;
+
+    for (const key of Object.keys(value)) {
+      const found = findYouTubeTrailer(value[key], seen);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function getTrailerSearchUrl(item) {
+    return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(item.title + ' official trailer');
+  }
+
+  function showTrailerOverlay(url) {
+    const youtubeId = getYouTubeId(url);
+    if (!youtubeId) {
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+
+    document.getElementById('js-seerr-trailer-overlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'js-seerr-trailer-overlay';
+    overlay.className = 'js-seerr-trailerOverlay';
+    overlay.innerHTML = [
+      '<div class="js-seerr-trailerDialog">',
+      '  <iframe class="js-seerr-trailerFrame" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen src="https://www.youtube.com/embed/' + escHtml(youtubeId) + '?autoplay=1"></iframe>',
+      '  <button class="js-seerr-trailerClose" type="button">Close</button>',
+      '</div>'
+    ].join('');
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) overlay.remove();
+    });
+    overlay.querySelector('.js-seerr-trailerClose')?.addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
+  }
+
+  function getYouTubeId(url) {
+    const text = String(url || '');
+    const patterns = [
+      /youtu\.be\/([A-Za-z0-9_-]{6,})/,
+      /youtube\.com\/watch\?.*?[?&]?v=([A-Za-z0-9_-]{6,})/,
+      /youtube\.com\/embed\/([A-Za-z0-9_-]{6,})/
+    ];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) return match[1];
+    }
+    return null;
+  }
+
+  async function buildComingSoonItem(request) {
+    const mediaType = getRequestMediaType(request);
+    const tmdbId = getRequestTmdbId(request);
+    const details = await seerrMediaDetails(mediaType, tmdbId);
+    const media = getRequestMedia(request);
+    const title = normalizeTitle(details) !== 'Unknown' ? normalizeTitle(details) : getRequestTitle(request);
+    const poster = normalizePoster(details, 'w342')
+      || getRequestPoster(request)
+      || posterUrl(media?.posterPath || media?.poster_path);
+
+    return {
+      key: getRequestProcessingKey(request),
+      title: title,
+      year: normalizeYear(details) || getRequestYear(request),
+      mediaType: mediaType,
+      poster: poster,
+      trailerUrl: findYouTubeTrailer(details) || findYouTubeTrailer(request),
+      fallbackTrailerUrl: getTrailerSearchUrl({ title: title })
+    };
+  }
+
+  async function pollProcessingRequests() {
+    const data = await seerrRequests('processing');
+    const processing = normalizeRequestItems(data).filter(isProcessingRequest);
+    if (!processing.length) {
+      comingSoonItems = [];
+      renderComingSoonSection();
+      return;
+    }
+
+    comingSoonItems = await Promise.all(processing.map(buildComingSoonItem));
+    renderComingSoonSection();
+  }
+
+  function startProcessingRequestPolling() {
+    clearInterval(processingRequestPollTimer);
+    pollProcessingRequests();
+    processingRequestPollTimer = setInterval(pollProcessingRequests, PROCESSING_REQUEST_POLL_MS);
+  }
+
+  function getHomeContentContainer() {
+    const visiblePages = Array.from(document.querySelectorAll('.page, [data-role="page"]'))
+      .filter(page => page instanceof HTMLElement && page.offsetParent !== null && !page.closest('#js-seerr-discover'));
+
+    const homePage = visiblePages.find(page => /home/i.test(page.id || page.className || ''))
+      || document.querySelector('.homePage:not([style*="display: none"])')
+      || document.querySelector('.mainAnimatedPages .page:not([style*="display: none"])');
+
+    if (!homePage) return null;
+
+    return homePage.querySelector('.content-primary')
+      || homePage.querySelector('.sections')
+      || homePage;
+  }
+
+  function getHomeSections(container) {
+    return Array.from(container.children)
+      .filter(child => child instanceof HTMLElement && child.id !== 'js-seerr-coming-soon');
+  }
+
+  function getSectionText(section) {
+    const heading = section.querySelector?.('h1,h2,h3,.sectionTitle,.emby-section-title,[class*="sectionTitle"],[class*="SectionTitle"]');
+    return ((heading?.textContent || section.textContent || '')).trim();
+  }
+
+  function findHomeSection(container, pattern) {
+    return getHomeSections(container).find(section => pattern.test(getSectionText(section))) || null;
+  }
+
+  function placeComingSoonSection(container, section) {
+    if (comingSoonPosition === 'bottom') {
+      container.appendChild(section);
+      return;
+    }
+
+    if (comingSoonPosition === 'after-my-media') {
+      const myMedia = findHomeSection(container, /my media|libraries/i);
+      if (myMedia?.nextSibling) {
+        container.insertBefore(section, myMedia.nextSibling);
+      } else if (myMedia) {
+        container.appendChild(section);
+      } else {
+        container.insertBefore(section, container.firstElementChild || null);
+      }
+      return;
+    }
+
+    if (comingSoonPosition === 'after-recently-added') {
+      const recentlyAdded = findHomeSection(container, /recently added|latest media|newly added/i);
+      if (recentlyAdded?.nextSibling) {
+        container.insertBefore(section, recentlyAdded.nextSibling);
+      } else if (recentlyAdded) {
+        container.appendChild(section);
+      } else {
+        container.insertBefore(section, container.firstElementChild || null);
+      }
+      return;
+    }
+
+    container.insertBefore(section, container.firstElementChild || null);
+  }
+
+  function renderComingSoonCard(item) {
+    const meta = [(item.year || ''), item.mediaType === 'tv' ? 'TV Show' : 'Movie']
+      .filter(Boolean)
+      .join(' · ');
+
+    return [
+      '<article class="js-seerr-comingSoonCard">',
+      '  <button class="js-seerr-comingSoonPosterWrap" type="button" data-coming-soon-key="' + escHtml(item.key) + '" aria-label="Play trailer for ' + escHtml(item.title) + '">',
+      item.poster
+        ? '    <img class="js-seerr-comingSoonPoster" src="' + escHtml(item.poster) + '" alt="' + escHtml(item.title) + '" loading="lazy" />'
+        : '    <span class="js-seerr-comingSoonPosterFallback">' + escHtml(item.title) + '</span>',
+      '    <span class="js-seerr-comingSoonBadge">Coming Soon</span>',
+      '    <span class="js-seerr-comingSoonPlay" aria-hidden="true"><span class="material-icons">play_arrow</span></span>',
+      '  </button>',
+      '  <div class="js-seerr-comingSoonName">' + escHtml(item.title) + '</div>',
+      meta ? '  <div class="js-seerr-comingSoonMeta">' + escHtml(meta) + '</div>' : '',
+      '</article>'
+    ].join('');
+  }
+
+  function bindComingSoonSection(section) {
+    Array.from(section.querySelectorAll('[data-coming-soon-key]')).forEach(button => {
+      button.addEventListener('click', () => {
+        const key = button.getAttribute('data-coming-soon-key');
+        const item = comingSoonItems.find(candidate => candidate.key === key);
+        if (!item) return;
+        showTrailerOverlay(item.trailerUrl || item.fallbackTrailerUrl);
+      });
+    });
+  }
+
+  function renderComingSoonSection() {
+    const existing = document.getElementById('js-seerr-coming-soon');
+    if (!isHomeRoute() || !comingSoonItems.length || comingSoonPosition === 'disabled') {
+      existing?.remove();
+      return;
+    }
+
+    const container = getHomeContentContainer();
+    if (!container) return;
+
+    const section = existing || document.createElement('section');
+    const signature = [
+      comingSoonPosition,
+      comingSoonItems.map(item => item.key + ':' + item.title + ':' + (item.poster || '')).join('|')
+    ].join('::');
+    if (existing?.dataset.signature === signature) {
+      placeComingSoonSection(container, section);
+      return;
+    }
+
+    section.id = 'js-seerr-coming-soon';
+    section.className = 'js-seerr-comingSoonSection';
+    section.dataset.signature = signature;
+    section.innerHTML = [
+      '<div class="js-seerr-comingSoonHeader">',
+      '  <h2 class="js-seerr-comingSoonTitle">Coming Soon</h2>',
+      '</div>',
+      '<div class="js-seerr-comingSoonRow">',
+      comingSoonItems.map(renderComingSoonCard).join(''),
+      '</div>'
+    ].join('');
+
+    placeComingSoonSection(container, section);
+    bindComingSoonSection(section);
+  }
+
+  function getItemDisplayName(item) {
+    return item?.Name || item?.OriginalTitle || item?.SortName || 'New item';
+  }
+
+  function isRecentlyCreated(item) {
+    const created = Date.parse(item?.DateCreated || '');
+    return Number.isFinite(created) && Date.now() - created <= INITIAL_RECENT_TOAST_MS;
+  }
+
+  function removeTrackedRequestsForLibraryItems(items) {
+    const availableKeys = new Set(items
+      .map(item => {
+        const tmdbId = item?.ProviderIds?.Tmdb;
+        if (!tmdbId) return null;
+        const mediaType = item.Type === 'Series' ? 'tv' : 'movie';
+        return mediaType + ':' + tmdbId;
+      })
+      .filter(Boolean));
+
+    if (!availableKeys.size) return;
+
+    const tracked = loadTrackedRequests();
+    const nextTracked = tracked.filter(item => !availableKeys.has(item.mediaType + ':' + item.mediaId));
+    if (nextTracked.length !== tracked.length) {
+      saveTrackedRequests(nextTracked);
+    }
+  }
+
+  async function pollLatestLibraryItems() {
+    const items = await jellyfinLatestLibraryItems();
+    if (!items.length) return;
+
+    const ids = items.map(item => String(item.Id)).filter(Boolean);
+    const known = loadKnownLatestItems();
+
+    if (known === null) {
+      saveKnownLatestItems(ids);
+      if (isPlaybackRoute()) return;
+
+      const recentItems = items.filter(isRecentlyCreated);
+      removeTrackedRequestsForLibraryItems(recentItems);
+      recentItems
+        .reverse()
+        .forEach(item => showToast('Available in Jellyfin', getItemDisplayName(item) + ' was added to your library.'));
+      return;
+    }
+
+    const knownSet = new Set(known);
+    const newItems = items.filter(item => item?.Id && !knownSet.has(String(item.Id)));
+    if (!newItems.length) {
+      saveKnownLatestItems([...ids, ...known.filter(id => !ids.includes(id))]);
+      return;
+    }
+
+    if (isPlaybackRoute()) return;
+
+    removeTrackedRequestsForLibraryItems(newItems);
+    newItems
+      .reverse()
+      .forEach(item => showToast('Available in Jellyfin', getItemDisplayName(item) + ' was added to your library.'));
+
+    saveKnownLatestItems([...ids, ...known.filter(id => !ids.includes(id))]);
+  }
+
+  function startLatestLibraryPolling() {
+    clearInterval(latestLibraryPollTimer);
+    pollLatestLibraryItems();
+    latestLibraryPollTimer = setInterval(pollLatestLibraryItems, LATEST_LIBRARY_POLL_MS);
+  }
+
   function setConfigStatus(view, msg, ok) {
     const el = view.querySelector('#statusMsg');
     if (!el) return;
@@ -433,8 +893,14 @@
       const cfg = await window.ApiClient.getPluginConfiguration(GUID);
       const urlInput = view.querySelector('#txtSeerrUrl');
       const keyInput = view.querySelector('#txtSeerrApiKey');
+      const comingSoonPositionInput = view.querySelector('#selectComingSoonPosition');
       if (urlInput) urlInput.value = cfg.SeerrUrl || '';
       if (keyInput) keyInput.value = cfg.SeerrApiKey || '';
+      if (comingSoonPositionInput) {
+        comingSoonPositionInput.value = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
+      }
+      comingSoonPosition = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
+      renderComingSoonSection();
       setConfigStatus(view, '', true);
     } catch {
       setConfigStatus(view, 'Could not load plugin settings', false);
@@ -450,8 +916,9 @@
     const testToastBtn = view.querySelector('#btnTestToast');
     const urlInput = view.querySelector('#txtSeerrUrl');
     const keyInput = view.querySelector('#txtSeerrApiKey');
+    const comingSoonPositionInput = view.querySelector('#selectComingSoonPosition');
 
-    if (!form || !saveBtn || !testBtn || !testToastBtn || !urlInput || !keyInput) return;
+    if (!form || !saveBtn || !testBtn || !testToastBtn || !urlInput || !keyInput || !comingSoonPositionInput) return;
 
     view.dataset.jsConfigBound = 'true';
 
@@ -464,7 +931,10 @@
         const cfg = await window.ApiClient.getPluginConfiguration(GUID);
         cfg.SeerrUrl = urlInput.value.trim();
         cfg.SeerrApiKey = keyInput.value.trim();
+        cfg.ComingSoonPosition = normalizeComingSoonPosition(comingSoonPositionInput.value);
         await window.ApiClient.updatePluginConfiguration(GUID, cfg);
+        comingSoonPosition = cfg.ComingSoonPosition;
+        renderComingSoonSection();
         setConfigStatus(view, 'Saved', true);
       } catch {
         setConfigStatus(view, 'Save failed', false);
@@ -838,6 +1308,7 @@
     bindBrowseAnchorButtons();
     updateDiscoverMenuState();
     ensureDiscoverPage();
+    renderComingSoonSection();
   }
 
   async function loadDiscoverSections() {
@@ -1143,7 +1614,17 @@
 
     initConfigPage();
     handleRouteChange();
+    loadPluginRuntimeConfig();
     startRequestPolling();
+    startProcessingRequestPolling();
+    startLatestLibraryPolling();
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        pollTrackedRequests();
+        pollProcessingRequests();
+        pollLatestLibraryItems();
+      }
+    });
     if (isDetailPage()) setTimeout(injectDetailButton, 800);
   }
 

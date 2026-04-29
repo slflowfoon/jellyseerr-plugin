@@ -6,4 +6,5 @@ public class PluginConfiguration : BasePluginConfiguration
 {
     public string SeerrUrl { get; set; } = string.Empty;
     public string SeerrApiKey { get; set; } = string.Empty;
+    public string ComingSoonPosition { get; set; } = "top";
 }

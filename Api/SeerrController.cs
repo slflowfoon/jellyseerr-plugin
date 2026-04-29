@@ -89,6 +89,39 @@ public class SeerrController : ControllerBase
         return Proxy(url, key, $"/api/v1/{endpoint}/{tmdbId}");
     }
 
+    /// <summary>Get Seerr requests so the client can notify when downloads begin.</summary>
+    [HttpGet("Requests")]
+    [Authorize]
+    public Task<IActionResult> GetRequests(
+        [FromQuery] string filter = "processing",
+        [FromQuery] int take = 20,
+        [FromQuery] int skip = 0,
+        [FromQuery] string sort = "added")
+    {
+        var (url, key) = GetConfig();
+        var safeFilter = filter.ToLowerInvariant() switch
+        {
+            "all" => "all",
+            "pending" => "pending",
+            "approved" => "approved",
+            "available" => "available",
+            "processing" => "processing",
+            "unavailable" => "unavailable",
+            "failed" => "failed",
+            _ => "processing",
+        };
+        var safeSort = sort.ToLowerInvariant() switch
+        {
+            "added" => "added",
+            "modified" => "modified",
+            _ => "added",
+        };
+
+        var safeTake = Math.Clamp(take, 1, 100);
+        var safeSkip = Math.Max(skip, 0);
+        return Proxy(url, key, $"/api/v1/request?take={safeTake}&skip={safeSkip}&filter={safeFilter}&sort={safeSort}");
+    }
+
     /// <summary>Submit a media request to Seerr.</summary>
     [HttpPost("Request")]
     [Authorize]

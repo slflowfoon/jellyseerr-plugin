@@ -23,6 +23,18 @@
           <div class="fieldDescription">Found in Seerr -> Settings -> General -> API Key</div>
         </div>
 
+        <div class="selectContainer">
+          <label class="selectLabel" for="selectComingSoonPosition">Coming Soon section position</label>
+          <select id="selectComingSoonPosition" class="emby-select-withcolor emby-select">
+            <option value="top">Top of Home</option>
+            <option value="after-my-media">After My Media</option>
+            <option value="after-recently-added">After Recently Added</option>
+            <option value="bottom">Bottom of Home</option>
+            <option value="disabled">Disabled</option>
+          </select>
+          <div class="fieldDescription">Controls where downloading JellySeerr requests appear on the Jellyfin Home page.</div>
+        </div>
+
         <div style="margin-top:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <button id="btnSave" type="submit" class="raised button-submit emby-button">Save</button>
           <button id="btnTest" type="button" class="raised emby-button">Test Connection</button>

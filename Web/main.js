@@ -297,6 +297,8 @@
   async function seerrComingSoonRequests() {
     const responses = await Promise.all([
       seerrRequests('processing'),
+      seerrRequests('approved'),
+      seerrRequests('pending'),
       seerrRequests('all')
     ]);
     const byKey = new Map();
@@ -595,9 +597,37 @@
 
   function isComingSoonRequest(request) {
     const media = getRequestMedia(request);
-    const status = media?.status ?? request?.status;
-    if (status == null) return true;
-    return [Status.PENDING, Status.PROCESSING, Status.PARTIAL].includes(Number(status));
+    const mediaStatus = normalizeStatusValue(media?.status ?? media?.status4k);
+    const requestStatus = normalizeStatusValue(request?.status);
+    const downloadStatus = findStatusText(request, /processing|downloading|download|approved|pending|partial/i);
+
+    if ([Status.AVAILABLE, 'available'].includes(mediaStatus)) return false;
+    if ([Status.PENDING, Status.PROCESSING, Status.PARTIAL].includes(mediaStatus)) return true;
+    if (downloadStatus) return true;
+    if (['pending', 'approved', 'processing', 'downloading', 'partial'].includes(requestStatus)) return true;
+
+    return mediaStatus == null && requestStatus == null;
+  }
+
+  function normalizeStatusValue(value) {
+    if (value == null) return null;
+    if (Number.isFinite(Number(value))) return Number(value);
+    return String(value).trim().toLowerCase();
+  }
+
+  function findStatusText(value, pattern, seen = new Set()) {
+    if (value == null || seen.has(value)) return false;
+    if (typeof value === 'string') return pattern.test(value);
+    if (typeof value !== 'object') return false;
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      return value.some(item => findStatusText(item, pattern, seen));
+    }
+
+    return Object.keys(value)
+      .filter(key => /status|download|state|profile|approval/i.test(key))
+      .some(key => findStatusText(value[key], pattern, seen));
   }
 
   function findYouTubeTrailer(value, seen = new Set()) {
@@ -710,11 +740,13 @@
 
   function getHomeContentContainer() {
     const visiblePages = Array.from(document.querySelectorAll('.page, [data-role="page"]'))
-      .filter(page => page instanceof HTMLElement && page.offsetParent !== null && !page.closest('#js-seerr-discover'));
+      .filter(page => page instanceof HTMLElement && !page.closest('#js-seerr-discover') && getComputedStyle(page).display !== 'none');
 
     const homePage = visiblePages.find(page => /home/i.test(page.id || page.className || ''))
       || document.querySelector('.homePage:not([style*="display: none"])')
-      || document.querySelector('.mainAnimatedPages .page:not([style*="display: none"])');
+      || document.querySelector('.mainAnimatedPages .page:not([style*="display: none"])')
+      || document.querySelector('.skinBody .mainAnimatedPages')
+      || document.querySelector('.mainAnimatedPages');
 
     if (!homePage) return null;
 
@@ -809,7 +841,10 @@
     }
 
     const container = getHomeContentContainer();
-    if (!container) return;
+    if (!container) {
+      setTimeout(renderComingSoonSection, 500);
+      return;
+    }
 
     const section = existing || document.createElement('section');
     const signature = [

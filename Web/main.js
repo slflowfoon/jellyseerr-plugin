@@ -28,6 +28,8 @@
   let comingSoonConfigLoaded = false;
   let comingSoonConfigLoading = false;
   let comingSoonRenderTimer = null;
+  let comingSoonHomeRenderAttemptsActive = false;
+  let comingSoonHomeRenderAttemptToken = 0;
   let suppressBrowseAnchorRedirect = false;
   let discoverExitRefreshTimer = null;
   let lastNonDiscoverHash = '#/home.html';
@@ -153,6 +155,24 @@
       comingSoonRenderTimer = null;
       renderComingSoonSection();
     }, delay);
+  }
+
+  function scheduleComingSoonHomeRenderAttempts(force = false) {
+    if (comingSoonHomeRenderAttemptsActive && !force) return;
+    comingSoonHomeRenderAttemptsActive = true;
+    const token = ++comingSoonHomeRenderAttemptToken;
+
+    [0, 150, 400, 800, 1500, 2500, 4000, 6500, 10000].forEach((delay, index, delays) => {
+      setTimeout(() => {
+        if (token !== comingSoonHomeRenderAttemptToken) return;
+        if (isHomeRoute() && !isDiscoverRoute()) {
+          queueComingSoonRender(0);
+        }
+        if (index === delays.length - 1) {
+          comingSoonHomeRenderAttemptsActive = false;
+        }
+      }, delay);
+    });
   }
 
   function trackRequestedItem(mediaType, mediaId, title) {
@@ -342,7 +362,7 @@
       const cfg = await apiFetch(API + '/RuntimeConfig');
       comingSoonPosition = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
       comingSoonConfigLoaded = true;
-      queueComingSoonRender();
+      scheduleComingSoonHomeRenderAttempts();
     } catch {
       comingSoonConfigLoaded = false;
     } finally {
@@ -610,36 +630,18 @@
     return posterUrl(media?.posterPath || media?.poster_path || request?.posterPath || request?.poster_path);
   }
 
-  function getRequestDownloadEntries(request) {
-    const media = getRequestMedia(request);
-    return [
-      ...(Array.isArray(media?.downloadStatus) ? media.downloadStatus : []),
-      ...(Array.isArray(media?.downloadStatus4k) ? media.downloadStatus4k : []),
-      ...(Array.isArray(request?.downloadStatus) ? request.downloadStatus : []),
-      ...(Array.isArray(request?.downloadStatus4k) ? request.downloadStatus4k : [])
-    ];
-  }
-
-  function isActiveDownloadEntry(entry) {
-    if (!entry || typeof entry !== 'object') return false;
-
-    const status = String(entry.status || entry.state || '').trim().toLowerCase();
-    if (/complete|completed|imported|available|failed|error|missing/i.test(status)) return false;
-    if (/download|downloading|process|processing|queue|queued|pause|paused|import|grab|grabbed/i.test(status)) return true;
-
-    const sizeLeft = Number(entry.sizeLeft ?? entry.remainingSize ?? entry.bytesLeft);
-    if (Number.isFinite(sizeLeft) && sizeLeft > 0) return true;
-
-    return Boolean(entry.downloadId || entry.estimatedCompletionTime);
-  }
-
   function isComingSoonRequest(request) {
     const media = getRequestMedia(request);
     const mediaStatus = normalizeStatusValue(media?.status ?? media?.status4k);
-    const downloads = getRequestDownloadEntries(request);
+    const requestStatus = normalizeStatusValue(request?.status);
+    const downloadStatus = findStatusText(request, /processing|downloading|download|queued|queue|paused|grabbed|partial/i);
 
     if ([Status.AVAILABLE, 'available'].includes(mediaStatus)) return false;
-    return downloads.some(isActiveDownloadEntry);
+    if ([Status.PENDING, Status.PROCESSING, Status.PARTIAL].includes(mediaStatus)) return true;
+    if (downloadStatus) return true;
+    if (['processing', 'downloading', 'partial'].includes(requestStatus)) return true;
+
+    return false;
   }
 
   function normalizeStatusValue(value) {
@@ -713,12 +715,12 @@
     const requests = await seerrComingSoonRequests();
     if (!requests.length) {
       comingSoonItems = [];
-      queueComingSoonRender();
+      scheduleComingSoonHomeRenderAttempts();
       return;
     }
 
     comingSoonItems = await Promise.all(requests.map(buildComingSoonItem));
-    queueComingSoonRender();
+    scheduleComingSoonHomeRenderAttempts();
   }
 
   function startProcessingRequestPolling() {
@@ -1363,16 +1365,7 @@
   }
 
   function scheduleComingSoonRenderAfterHomeRemount() {
-    // Don't remove the section before each retry; if comingSoonItems is empty
-    // mid-flight the remove sticks and the section never comes back. Just attempt
-    // to render; renderComingSoonSection's placement check handles idempotency.
-    [120, 350, 800, 1400, 2200, 3500].forEach(delay => {
-      setTimeout(() => {
-        if (isHomeRoute() && !isDiscoverRoute()) {
-          queueComingSoonRender(0);
-        }
-      }, delay);
-    });
+    scheduleComingSoonHomeRenderAttempts(true);
   }
 
   function applyDiscoverRequestState(button, mediaType, data) {
@@ -1401,7 +1394,11 @@
     bindBrowseAnchorButtons();
     updateDiscoverMenuState();
     ensureDiscoverPage();
-    queueComingSoonRender();
+    if (isHomeRoute() && !isDiscoverRoute()) {
+      scheduleComingSoonHomeRenderAttempts();
+    } else {
+      queueComingSoonRender();
+    }
   }
 
   async function loadDiscoverSections() {

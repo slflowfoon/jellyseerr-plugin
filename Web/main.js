@@ -27,7 +27,6 @@
   let comingSoonItems = [];
   let comingSoonPosition = loadCachedComingSoonPosition() || 'top';
   let comingSoonConfigLoaded = Boolean(loadCachedComingSoonPosition());
-  let comingSoonRenderRetryTimer = null;
   let suppressBrowseAnchorRedirect = false;
   let discoverExitRefreshTimer = null;
   let lastNonDiscoverHash = '#/home.html';
@@ -768,11 +767,6 @@
     return section.parentElement === container && section.nextSibling === placement.before;
   }
 
-  function retryComingSoonRender(delay = 500) {
-    clearTimeout(comingSoonRenderRetryTimer);
-    comingSoonRenderRetryTimer = setTimeout(renderComingSoonSection, delay);
-  }
-
   function placeComingSoonSection(container, section) {
     const placement = getComingSoonPlacement(container);
     if (!placement.ready) return false;
@@ -818,15 +812,13 @@
 
     const container = getHomeContentContainer();
     if (!container) {
-      retryComingSoonRender();
       return;
     }
-    clearTimeout(comingSoonRenderRetryTimer);
 
     const section = existing || document.createElement('section');
     const placement = getComingSoonPlacement(container);
     if (!placement.ready) {
-      retryComingSoonRender();
+      existing?.remove();
       return;
     }
 
@@ -849,7 +841,6 @@
     ].join('');
 
     if (!placeComingSoonSection(container, section)) {
-      retryComingSoonRender();
       return;
     }
     bindComingSoonSection(section);

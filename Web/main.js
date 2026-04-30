@@ -610,18 +610,36 @@
     return posterUrl(media?.posterPath || media?.poster_path || request?.posterPath || request?.poster_path);
   }
 
+  function getRequestDownloadEntries(request) {
+    const media = getRequestMedia(request);
+    return [
+      ...(Array.isArray(media?.downloadStatus) ? media.downloadStatus : []),
+      ...(Array.isArray(media?.downloadStatus4k) ? media.downloadStatus4k : []),
+      ...(Array.isArray(request?.downloadStatus) ? request.downloadStatus : []),
+      ...(Array.isArray(request?.downloadStatus4k) ? request.downloadStatus4k : [])
+    ];
+  }
+
+  function isActiveDownloadEntry(entry) {
+    if (!entry || typeof entry !== 'object') return false;
+
+    const status = String(entry.status || entry.state || '').trim().toLowerCase();
+    if (/complete|completed|imported|available|failed|error|missing/i.test(status)) return false;
+    if (/download|downloading|process|processing|queue|queued|pause|paused|import|grab|grabbed/i.test(status)) return true;
+
+    const sizeLeft = Number(entry.sizeLeft ?? entry.remainingSize ?? entry.bytesLeft);
+    if (Number.isFinite(sizeLeft) && sizeLeft > 0) return true;
+
+    return Boolean(entry.downloadId || entry.estimatedCompletionTime);
+  }
+
   function isComingSoonRequest(request) {
     const media = getRequestMedia(request);
     const mediaStatus = normalizeStatusValue(media?.status ?? media?.status4k);
-    const requestStatus = normalizeStatusValue(request?.status);
-    const downloadStatus = findStatusText(request, /processing|downloading|download|approved|pending|partial/i);
+    const downloads = getRequestDownloadEntries(request);
 
     if ([Status.AVAILABLE, 'available'].includes(mediaStatus)) return false;
-    if ([Status.PENDING, Status.PROCESSING, Status.PARTIAL].includes(mediaStatus)) return true;
-    if (downloadStatus) return true;
-    if (['pending', 'approved', 'processing', 'downloading', 'partial'].includes(requestStatus)) return true;
-
-    return mediaStatus == null && requestStatus == null;
+    return downloads.some(isActiveDownloadEntry);
   }
 
   function normalizeStatusValue(value) {

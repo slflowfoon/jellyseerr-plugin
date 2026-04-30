@@ -70,7 +70,7 @@
     style.id = 'js-seerr-styles';
     style.textContent = [
       ':root { --js-seerr-accent: var(--theme-primary-color, #00a4dc); --js-seerr-surface: rgba(255,255,255,.04); --js-seerr-surface-strong: rgba(255,255,255,.08); --js-seerr-border: rgba(255,255,255,.08); }',
-      '#js-seerr-discover.page { position: relative; width: 100%; min-height: 100%; z-index: 5; overflow: visible; padding: 3.3%; color: var(--theme-text-color, inherit); background: transparent; }',
+      '#js-seerr-discover.page { position: relative; box-sizing:border-box; width: 100%; min-height: 100%; z-index: 5; overflow: visible; padding: 3.3%; color: var(--theme-text-color, inherit); background: transparent; }',
       '#js-seerr-discover .content-primary { max-width: none; margin: 0; padding: 0; }',
       '.js-seerr-hero { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin:0 0 1.2rem; }',
       '.js-seerr-title { margin:0; font-size:1.7rem; line-height:1.2; font-weight:600; }',
@@ -81,7 +81,7 @@
       '.js-seerr-section { margin-top:1.6rem; }',
       '.js-seerr-sectionHeader { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.75rem; }',
       '.js-seerr-sectionTitle { margin:0; font-size:1.25rem; font-weight:600; }',
-      '.js-seerr-row { display:flex; gap:1rem; overflow-x:auto; padding-bottom:.5rem; }',
+      '.js-seerr-row { display:flex; gap:1rem; overflow-x:auto; padding:0 .25rem .5rem 0; }',
       '.js-seerr-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; }',
       '.js-seerr-card { display:flex; flex-direction:column; gap:.65rem; min-width:180px; }',
       '.js-seerr-poster { width:100%; aspect-ratio:2/3; object-fit:cover; border-radius:12px; background:var(--js-seerr-surface); box-shadow: 0 0 0 1px var(--js-seerr-border); }',

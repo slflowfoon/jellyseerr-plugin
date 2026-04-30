@@ -47,6 +47,18 @@ public class SeerrController : ControllerBase
         return Content(reader.ReadToEnd(), "application/javascript; charset=utf-8");
     }
 
+    /// <summary>Returns non-secret runtime settings needed by the injected client.</summary>
+    [HttpGet("RuntimeConfig")]
+    [Authorize]
+    public IActionResult GetRuntimeConfig()
+    {
+        var config = Plugin.Instance!.Configuration;
+        return Ok(new
+        {
+            ComingSoonPosition = config.ComingSoonPosition
+        });
+    }
+
     /// <summary>Search Seerr for movies and TV shows.</summary>
     [HttpGet("Search")]
     [Authorize]

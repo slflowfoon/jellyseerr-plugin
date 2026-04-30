@@ -148,7 +148,7 @@
   }
 
   function queueComingSoonRender(delay = 80) {
-    clearTimeout(comingSoonRenderTimer);
+    if (comingSoonRenderTimer) return;
     comingSoonRenderTimer = setTimeout(() => {
       comingSoonRenderTimer = null;
       renderComingSoonSection();
@@ -339,7 +339,7 @@
     if (comingSoonConfigLoading) return;
     comingSoonConfigLoading = true;
     try {
-      const cfg = await window.ApiClient.getPluginConfiguration(GUID);
+      const cfg = await apiFetch(API + '/RuntimeConfig');
       comingSoonPosition = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
       comingSoonConfigLoaded = true;
       queueComingSoonRender();

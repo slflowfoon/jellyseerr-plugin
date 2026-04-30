@@ -70,18 +70,17 @@
     style.id = 'js-seerr-styles';
     style.textContent = [
       ':root { --js-seerr-accent: var(--theme-primary-color, #00a4dc); --js-seerr-surface: rgba(255,255,255,.04); --js-seerr-surface-strong: rgba(255,255,255,.08); --js-seerr-border: rgba(255,255,255,.08); }',
-      '#js-seerr-discover.page { position: relative; width: 100%; min-height: 100%; z-index: 5; overflow: visible; padding: 1.5rem 1.5rem 2rem; background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.02) 14rem), var(--theme-body-background, #101010); color: var(--theme-text-color, #fff); }',
-      '#js-seerr-discover .content-primary { max-width: 1320px; margin: 0 auto; padding: 0; }',
-      '.js-seerr-hero { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }',
-      '.js-seerr-eyebrow { font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; color:var(--js-seerr-accent); margin-bottom:.35rem; }',
-      '.js-seerr-title { margin:0; font-size:2.4rem; line-height:1.05; font-weight:700; }',
+      '#js-seerr-discover.page { position: relative; width: 100%; min-height: 100%; z-index: 5; overflow: visible; padding: 3.3%; color: var(--theme-text-color, inherit); background: transparent; }',
+      '#js-seerr-discover .content-primary { max-width: none; margin: 0; padding: 0; }',
+      '.js-seerr-hero { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin:0 0 1.2rem; }',
+      '.js-seerr-title { margin:0; font-size:1.7rem; line-height:1.2; font-weight:600; }',
       '.js-seerr-actions { display:flex; gap:.75rem; align-items:center; flex-wrap:wrap; }',
-      '.js-seerr-pill { border:none; border-radius:999px; padding:.8rem 1rem; background:var(--js-seerr-surface-strong); color:inherit; cursor:pointer; font:inherit; }',
-      '.js-seerr-searchbar { display:flex; align-items:center; gap:.75rem; margin:1rem 0 1.5rem; }',
-      '.js-seerr-searchbar input { width:100%; padding:1rem 1.1rem; border:none; border-radius:14px; background:var(--js-seerr-surface); box-shadow: inset 0 0 0 1px var(--js-seerr-border); color:inherit; font:inherit; }',
-      '.js-seerr-section { margin-top:1.8rem; }',
-      '.js-seerr-sectionHeader { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.8rem; }',
-      '.js-seerr-sectionTitle { margin:0; font-size:1.4rem; font-weight:700; }',
+      '.js-seerr-pill { border:0; border-radius:.2em; padding:.65em 1em; background:var(--theme-primary-color, #00a4dc); color:#fff; cursor:pointer; font:inherit; }',
+      '.js-seerr-searchbar { display:flex; align-items:center; gap:.75rem; margin:0 0 1.5rem; }',
+      '.js-seerr-searchbar input { width:100%; color:inherit; font:inherit; }',
+      '.js-seerr-section { margin-top:1.6rem; }',
+      '.js-seerr-sectionHeader { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.75rem; }',
+      '.js-seerr-sectionTitle { margin:0; font-size:1.25rem; font-weight:600; }',
       '.js-seerr-row { display:flex; gap:1rem; overflow-x:auto; padding-bottom:.5rem; }',
       '.js-seerr-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; }',
       '.js-seerr-card { display:flex; flex-direction:column; gap:.65rem; min-width:180px; }',
@@ -116,7 +115,7 @@
       '#js-seerr-nav .navMenuOptionText { margin-left:0 !important; }',
       '#js-seerr-nav .navMenuOptionIcon { margin-right:1.15rem; }',
       '@keyframes jsSeerrToastIn { to { transform:translateY(0); opacity:1; } }',
-      '@media (max-width: 900px) { #js-seerr-discover.page { padding: 1rem 1rem 1.5rem; } .js-seerr-title { font-size:2rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } .js-seerr-comingSoonSection { padding:0 1rem; } .js-seerr-comingSoonCard { flex-basis:140px; max-width:140px; } }'
+      '@media (max-width: 900px) { #js-seerr-discover.page { padding: 1rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } .js-seerr-comingSoonSection { padding:0 1rem; } .js-seerr-comingSoonCard { flex-basis:140px; max-width:140px; } }'
     ].join('\n');
     document.head.appendChild(style);
   }
@@ -1707,16 +1706,13 @@
     page.innerHTML = [
       '<div class="content-primary">',
       '  <div class="js-seerr-hero">',
-      '    <div>',
-      '      <div class="js-seerr-eyebrow">JellySeerr</div>',
-      '      <h1 class="js-seerr-title">Discover</h1>',
-      '    </div>',
+      '    <h1 class="js-seerr-title sectionTitle">Discover</h1>',
       '    <div class="js-seerr-actions">',
-      '      <button id="js-seerr-discover-refresh" class="js-seerr-pill" type="button">Refresh</button>',
+      '      <button id="js-seerr-discover-refresh" class="raised emby-button js-seerr-pill" type="button">Refresh</button>',
       '    </div>',
       '  </div>',
       '  <div class="js-seerr-searchbar">',
-      '    <input id="js-seerr-discover-search" type="search" placeholder="Search Seerr for movies and TV shows..." autocomplete="off" />',
+      '    <input id="js-seerr-discover-search" class="emby-input" type="search" placeholder="Search Seerr for movies and TV shows..." autocomplete="off" />',
       '  </div>',
       renderDiscoverBody(),
       '</div>'

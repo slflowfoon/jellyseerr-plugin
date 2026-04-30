@@ -25,6 +25,7 @@
   let discoverMounted = false;
   let comingSoonItems = [];
   let comingSoonPosition = 'top';
+  let comingSoonConfigLoaded = false;
   let comingSoonRenderRetryTimer = null;
   let suppressBrowseAnchorRedirect = false;
   let discoverExitRefreshTimer = null;
@@ -88,16 +89,14 @@
       '.js-seerr-toastTitle { font-size:.9rem; color:var(--js-seerr-accent); margin-bottom:.25rem; }',
       '.js-seerr-toastBody { font-size:.98rem; line-height:1.35; }',
       '.js-seerr-comingSoonSection { margin:1.25rem 0 .9rem; padding:0 3.3%; color:var(--theme-text-color, #fff); }',
-      '.js-seerr-comingSoonHeader { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:0 0 .75rem; }',
-      '.js-seerr-comingSoonTitle { margin:0; font-size:1.5rem; line-height:1.2; font-weight:600; }',
+      '.js-seerr-comingSoonHeader { margin:0 0 .75rem; }',
+      '.js-seerr-comingSoonTitle { margin:0; }',
       '.js-seerr-comingSoonRow { display:flex; gap:1rem; overflow-x:auto; overscroll-behavior-x:contain; touch-action:pan-x; padding:.2rem 0 .35rem; }',
       '.js-seerr-comingSoonCard { flex:0 0 170px; max-width:170px; display:flex; flex-direction:column; gap:.55rem; color:inherit; }',
-      '.js-seerr-comingSoonPosterWrap { position:relative; width:100%; aspect-ratio:2/3; border:none; border-radius:8px; overflow:hidden; background:var(--js-seerr-surface); color:#fff; padding:0; cursor:pointer; box-shadow:0 0 0 1px var(--js-seerr-border); }',
+      '.js-seerr-comingSoonPosterWrap { position:relative; width:100%; aspect-ratio:2/3; border:none; border-radius:8px; overflow:hidden; background:var(--js-seerr-surface); color:#fff; padding:0; box-shadow:0 0 0 1px var(--js-seerr-border); }',
       '.js-seerr-comingSoonPoster { width:100%; height:100%; object-fit:cover; display:block; }',
       '.js-seerr-comingSoonPosterFallback { width:100%; height:100%; display:flex; align-items:center; justify-content:center; padding:1rem; text-align:center; color:var(--theme-secondary-text-color, #aaa); background:rgba(255,255,255,.04); }',
       '.js-seerr-comingSoonBadge { position:absolute; left:.5rem; top:.5rem; padding:.28rem .45rem; border-radius:4px; background:rgba(0,0,0,.78); color:#fff; font-size:.72rem; line-height:1; font-weight:700; text-transform:uppercase; }',
-      '.js-seerr-comingSoonPlay { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:3.1rem; height:3.1rem; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.72); color:#fff; box-shadow:0 4px 16px rgba(0,0,0,.4); }',
-      '.js-seerr-comingSoonPlay .material-icons { font-size:2rem; }',
       '.js-seerr-comingSoonName { font-size:.95rem; line-height:1.25; font-weight:600; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }',
       '.js-seerr-comingSoonMeta { font-size:.78rem; color:var(--theme-secondary-text-color, #aaa); }',
       '.js-seerr-trailerOverlay { position:fixed; inset:0; z-index:100003; display:flex; align-items:center; justify-content:center; padding:1.5rem; background:rgba(0,0,0,.86); }',
@@ -330,9 +329,11 @@
     try {
       const cfg = await window.ApiClient.getPluginConfiguration(GUID);
       comingSoonPosition = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
+      comingSoonConfigLoaded = true;
       renderComingSoonSection();
     } catch {
       comingSoonPosition = 'top';
+      comingSoonConfigLoaded = true;
     }
   }
 
@@ -658,43 +659,6 @@
     return null;
   }
 
-  function getTrailerSearchUrl(item) {
-    return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(item.title + ' official trailer');
-  }
-
-  function showTrailerOverlay(url) {
-    const target = getYouTubeWatchUrl(url);
-    if (isMobileViewport()) {
-      window.location.href = target;
-      return;
-    }
-
-    window.open(target, '_blank', 'noopener');
-  }
-
-  function getYouTubeWatchUrl(url) {
-    const youtubeId = getYouTubeId(url);
-    return youtubeId ? 'https://www.youtube.com/watch?v=' + encodeURIComponent(youtubeId) : url;
-  }
-
-  function isMobileViewport() {
-    return window.matchMedia?.('(max-width: 700px), (pointer: coarse)')?.matches === true;
-  }
-
-  function getYouTubeId(url) {
-    const text = String(url || '');
-    const patterns = [
-      /youtu\.be\/([A-Za-z0-9_-]{6,})/,
-      /youtube\.com\/watch\?.*?[?&]?v=([A-Za-z0-9_-]{6,})/,
-      /youtube\.com\/embed\/([A-Za-z0-9_-]{6,})/
-    ];
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match) return match[1];
-    }
-    return null;
-  }
-
   async function buildComingSoonItem(request) {
     const mediaType = getRequestMediaType(request);
     const tmdbId = getRequestTmdbId(request);
@@ -710,9 +674,7 @@
       title: title,
       year: normalizeYear(details) || getRequestYear(request),
       mediaType: mediaType,
-      poster: poster,
-      trailerUrl: findYouTubeTrailer(details) || findYouTubeTrailer(request),
-      fallbackTrailerUrl: getTrailerSearchUrl({ title: title })
+      poster: poster
     };
   }
 
@@ -809,13 +771,12 @@
 
     return [
       '<article class="js-seerr-comingSoonCard">',
-      '  <button class="js-seerr-comingSoonPosterWrap" type="button" data-coming-soon-key="' + escHtml(item.key) + '" aria-label="Play trailer for ' + escHtml(item.title) + '">',
+      '  <div class="js-seerr-comingSoonPosterWrap">',
       item.poster
         ? '    <img class="js-seerr-comingSoonPoster" src="' + escHtml(item.poster) + '" alt="' + escHtml(item.title) + '" loading="lazy" />'
         : '    <span class="js-seerr-comingSoonPosterFallback">' + escHtml(item.title) + '</span>',
       '    <span class="js-seerr-comingSoonBadge">Coming Soon</span>',
-      '    <span class="js-seerr-comingSoonPlay" aria-hidden="true"><span class="material-icons">play_arrow</span></span>',
-      '  </button>',
+      '  </div>',
       '  <div class="js-seerr-comingSoonName">' + escHtml(item.title) + '</div>',
       meta ? '  <div class="js-seerr-comingSoonMeta">' + escHtml(meta) + '</div>' : '',
       '</article>'
@@ -830,20 +791,11 @@
         row.addEventListener(type, event => event.stopPropagation(), { passive: true });
       });
     }
-
-    Array.from(section.querySelectorAll('[data-coming-soon-key]')).forEach(button => {
-      button.addEventListener('click', () => {
-        const key = button.getAttribute('data-coming-soon-key');
-        const item = comingSoonItems.find(candidate => candidate.key === key);
-        if (!item) return;
-        showTrailerOverlay(item.trailerUrl || item.fallbackTrailerUrl);
-      });
-    });
   }
 
   function renderComingSoonSection() {
     const existing = document.getElementById('js-seerr-coming-soon');
-    if (!isHomeRoute() || !comingSoonItems.length || comingSoonPosition === 'disabled') {
+    if (!comingSoonConfigLoaded || !isHomeRoute() || !comingSoonItems.length || comingSoonPosition === 'disabled') {
       existing?.remove();
       return;
     }
@@ -867,8 +819,8 @@
     section.className = 'js-seerr-comingSoonSection';
     section.dataset.signature = signature;
     section.innerHTML = [
-      '<div class="js-seerr-comingSoonHeader">',
-      '  <h2 class="js-seerr-comingSoonTitle">Coming Soon</h2>',
+      '<div class="js-seerr-comingSoonHeader sectionTitleContainer">',
+      '  <h2 class="js-seerr-comingSoonTitle sectionTitle">Coming Soon</h2>',
       '</div>',
       '<div class="js-seerr-comingSoonRow">',
       comingSoonItems.map(renderComingSoonCard).join(''),
@@ -1365,12 +1317,13 @@
         setTimeout(() => { suppressBrowseAnchorRedirect = false; }, 0);
       }
 
+      pollProcessingRequests();
       scheduleComingSoonRenderAfterHomeRemount();
     }, 80);
   }
 
   function scheduleComingSoonRenderAfterHomeRemount() {
-    [120, 350, 800, 1400].forEach(delay => {
+    [120, 350, 800, 1400, 2200].forEach(delay => {
       setTimeout(() => {
         if (isHomeRoute() && !isDiscoverRoute()) {
           renderComingSoonSection();

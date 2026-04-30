@@ -14,6 +14,294 @@
         "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.38/JellySeerr.zip",
         "checksum": "fb13949ca7d7706c0cdb0f9dd1e8d8a7",
         "timestamp": "2026-04-30T07:01:15Z"
+      },
+      {
+        "version": "1.0.37.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.37/JellySeerr.zip",
+        "checksum": "e4cced69f26cef5d50e90161fcd98ba1",
+        "timestamp": "2026-04-30T06:43:49Z"
+      },
+      {
+        "version": "1.0.36.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.36/JellySeerr.zip",
+        "checksum": "54dbaab7d2d0e2d89189fa7bfbf78b9a",
+        "timestamp": "2026-04-30T06:38:49Z"
+      },
+      {
+        "version": "1.0.35.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.35/JellySeerr.zip",
+        "checksum": "43a23cd6c84da61c4e6229f2d7259383",
+        "timestamp": "2026-04-30T06:32:44Z"
+      },
+      {
+        "version": "1.0.34.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.34/JellySeerr.zip",
+        "checksum": "c968c36b114e3fb9485c3e8e49f64c35",
+        "timestamp": "2026-04-29T22:05:22Z"
+      },
+      {
+        "version": "1.0.33.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.33/JellySeerr.zip",
+        "checksum": "8457a4ff43cf5e3782f66ad0d79d57b2",
+        "timestamp": "2026-04-29T21:45:39Z"
+      },
+      {
+        "version": "1.0.32.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.32/JellySeerr.zip",
+        "checksum": "535be003c637506f37e0a3fba70b260e",
+        "timestamp": "2026-04-29T21:43:59Z"
+      },
+      {
+        "version": "1.0.31.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.31/JellySeerr.zip",
+        "checksum": "48502d72b829cedf01f0d1447c2009a4",
+        "timestamp": "2026-04-29T21:40:19Z"
+      },
+      {
+        "version": "1.0.30.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.30/JellySeerr.zip",
+        "checksum": "dfe4ba7abd8dc721ed184f77d79de588",
+        "timestamp": "2026-04-29T21:33:41Z"
+      },
+      {
+        "version": "1.0.29.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.29/JellySeerr.zip",
+        "checksum": "ffa388427e073daf8dbb0217e6ef9898",
+        "timestamp": "2026-04-29T21:25:45Z"
+      },
+      {
+        "version": "1.0.27.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.27/JellySeerr.zip",
+        "checksum": "b16532fbe42bd9b86958037d650edbc1",
+        "timestamp": "2026-04-29T21:16:59Z"
+      },
+      {
+        "version": "1.0.26.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.26/JellySeerr.zip",
+        "checksum": "c34d70ee398b1d2db2b118483f31e6e1",
+        "timestamp": "2026-04-29T21:05:53Z"
+      },
+      {
+        "version": "1.0.25.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.25/JellySeerr.zip",
+        "checksum": "7e2f45d7278e4c3113ed566d456decaf",
+        "timestamp": "2026-04-29T17:53:47Z"
+      },
+      {
+        "version": "1.0.24.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.24/JellySeerr.zip",
+        "checksum": "bca2964eac48b73a3549f0b9272914ba",
+        "timestamp": "2026-04-29T16:31:52Z"
+      },
+      {
+        "version": "1.0.23.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.23/JellySeerr.zip",
+        "checksum": "c55863d429c00e44292c262821fa3a97",
+        "timestamp": "2026-04-28T14:54:51Z"
+      },
+      {
+        "version": "1.0.22.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.22/JellySeerr.zip",
+        "checksum": "27675e1c4d84846e63327ea92b232474",
+        "timestamp": "2026-04-28T14:34:43Z"
+      },
+      {
+        "version": "1.0.21.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.21/JellySeerr.zip",
+        "checksum": "dff44e9f407aa7ada5652a89f1d56fbf",
+        "timestamp": "2026-04-28T14:32:41Z"
+      },
+      {
+        "version": "1.0.20.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.20/JellySeerr.zip",
+        "checksum": "1b511502999e0d9c4ce5da0a5019c623",
+        "timestamp": "2026-04-28T14:25:59Z"
+      },
+      {
+        "version": "1.0.19.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.19/JellySeerr.zip",
+        "checksum": "16ad206e45af7f17c340e87bc0948f7f",
+        "timestamp": "2026-04-28T14:19:37Z"
+      },
+      {
+        "version": "1.0.18.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.18/JellySeerr.zip",
+        "checksum": "976a3c39fb2b7c0698040094124bb348",
+        "timestamp": "2026-04-28T14:15:02Z"
+      },
+      {
+        "version": "1.0.17.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.17/JellySeerr.zip",
+        "checksum": "20aed71147ff35edbd1011a61ae0ce9b",
+        "timestamp": "2026-04-28T10:09:10Z"
+      },
+      {
+        "version": "1.0.16.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.16/JellySeerr.zip",
+        "checksum": "1106835e192a68e327fa28c4cf4e8277",
+        "timestamp": "2026-04-28T10:00:12Z"
+      },
+      {
+        "version": "1.0.15.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.15/JellySeerr.zip",
+        "checksum": "457c1338fa11bbff4c8a05c8ef316c0b",
+        "timestamp": "2026-04-28T09:54:54Z"
+      },
+      {
+        "version": "1.0.14.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.14/JellySeerr.zip",
+        "checksum": "a50691fa420f92212ba00320288f617e",
+        "timestamp": "2026-04-28T09:51:09Z"
+      },
+      {
+        "version": "1.0.13.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.13/JellySeerr.zip",
+        "checksum": "368debc9f9d9527ce6768d023f39615d",
+        "timestamp": "2026-04-28T09:44:33Z"
+      },
+      {
+        "version": "1.0.12.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.12/JellySeerr.zip",
+        "checksum": "0c672e8ffaf72584960d6f5bcad17a37",
+        "timestamp": "2026-04-28T09:39:57Z"
+      },
+      {
+        "version": "1.0.11.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.11/JellySeerr.zip",
+        "checksum": "333a21c7a33371ea139f149c9e475657",
+        "timestamp": "2026-04-28T09:34:01Z"
+      },
+      {
+        "version": "1.0.10.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.10/JellySeerr.zip",
+        "checksum": "a2566434b9ce9caec99acf2ada129a3e",
+        "timestamp": "2026-04-28T09:31:06Z"
+      },
+      {
+        "version": "1.0.9.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.9/JellySeerr.zip",
+        "checksum": "0fdbf53429a13b111266c0a7ad1165b6",
+        "timestamp": "2026-04-28T09:25:22Z"
+      },
+      {
+        "version": "1.0.8.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.8/JellySeerr.zip",
+        "checksum": "2b4938d2641c27603102adfb2c6a3b54",
+        "timestamp": "2026-04-28T09:19:06Z"
+      },
+      {
+        "version": "1.0.7.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.7/JellySeerr.zip",
+        "checksum": "10c784602e6a98e67915b13f865ed1b4",
+        "timestamp": "2026-04-28T09:14:24Z"
+      },
+      {
+        "version": "1.0.6.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.6/JellySeerr.zip",
+        "checksum": "f57cabcb40f408588d38c0c8d541370f",
+        "timestamp": "2026-04-28T09:08:27Z"
+      },
+      {
+        "version": "1.0.5.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.5/JellySeerr.zip",
+        "checksum": "6ec5f52b12c15d1da37faddbcaa785c9",
+        "timestamp": "2026-04-28T09:03:16Z"
+      },
+      {
+        "version": "1.0.4.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.4/JellySeerr.zip",
+        "checksum": "1b81ce64d332d88026db82b03d7286d7",
+        "timestamp": "2026-04-28T08:56:53Z"
+      },
+      {
+        "version": "1.0.3.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.3/JellySeerr.zip",
+        "checksum": "1d5d4b145e4b258ee880dba717abf32a",
+        "timestamp": "2026-04-28T08:51:38Z"
+      },
+      {
+        "version": "1.0.2.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.2/JellySeerr.zip",
+        "checksum": "98056e8450896ef99021838829568b09",
+        "timestamp": "2026-04-28T08:26:37Z"
+      },
+      {
+        "version": "1.0.0.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.0/JellySeerr.zip",
+        "checksum": "a997ee2c5ca2caa00c7464dbe604b952",
+        "timestamp": "2026-04-28T07:09:34Z"
       }
     ]
   }

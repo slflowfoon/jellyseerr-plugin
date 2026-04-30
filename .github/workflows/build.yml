@@ -66,28 +66,18 @@ jobs:
           URL="https://github.com/${REPO}/releases/download/${TAG}/JellySeerr.zip"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          cat > manifest.json << EOF
-          [
-            {
-              "guid": "3b4f8e2a-7c91-4d05-b3e6-1a2f9c847d30",
-              "name": "JellySeerr",
-              "description": "Request movies and TV shows via Seerr directly from Jellyfin.",
-              "overview": "Adds a request button to media detail pages and a full search modal so you can browse and request any movie or TV show through your Seerr instance.",
-              "owner": "slflowfoon",
-              "category": "General",
-              "versions": [
-                {
-                  "version": "${VERSION}.0",
-                  "changelog": "See GitHub release notes.",
-                  "targetAbi": "10.10.0.0",
-                  "sourceUrl": "${URL}",
-                  "checksum": "${CHECKSUM}",
-                  "timestamp": "${TIMESTAMP}"
-                }
-              ]
-            }
-          ]
-          EOF
+          # Prepend new version to the existing versions array so all previous
+          # versions remain visible in Jellyfin's plugin catalogue for rollback.
+          NEW_ENTRY=$(jq -n \
+            --arg v "${VERSION}.0" \
+            --arg url "$URL" \
+            --arg md5 "$CHECKSUM" \
+            --arg ts "$TIMESTAMP" \
+            '{version:$v,changelog:"See GitHub release notes.",targetAbi:"10.10.0.0",sourceUrl:$url,checksum:$md5,timestamp:$ts}')
+
+          jq --argjson entry "$NEW_ENTRY" \
+            '.[0].versions = [$entry] + .[0].versions' \
+            manifest.json > manifest.tmp && mv manifest.tmp manifest.json
 
       - name: Commit release metadata
         run: |

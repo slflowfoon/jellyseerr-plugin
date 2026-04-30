@@ -751,21 +751,52 @@
     processingRequestPollTimer = setInterval(pollProcessingRequests, PROCESSING_REQUEST_POLL_MS);
   }
 
+  function isVisiblePageCandidate(element) {
+    if (!(element instanceof HTMLElement) || element.closest('#js-seerr-discover')) return false;
+    const style = getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    if (element.hidden || element.getAttribute('aria-hidden') === 'true') return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  function getHomeContainerFromPage(page) {
+    return page.querySelector('.homeSections')
+      || page.querySelector('.content-primary')
+      || page.querySelector('.sections')
+      || page;
+  }
+
+  function scoreHomePageCandidate(page, index) {
+    const text = (page.textContent || '').slice(0, 4000);
+    const idClass = [page.id, page.className].join(' ');
+    let score = index;
+
+    if (/home/i.test(idClass)) score += 1000;
+    if (/my media|libraries|next up|recently added|latest/i.test(text)) score += 500;
+    if (/hide|hidden|inactive/i.test(idClass)) score -= 1000;
+
+    const rect = page.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) score += 100;
+    return score;
+  }
+
   function getHomeContentContainer() {
-    const visiblePages = Array.from(document.querySelectorAll('.page, [data-role="page"]'))
-      .filter(page => page instanceof HTMLElement && !page.closest('#js-seerr-discover') && getComputedStyle(page).display !== 'none');
+    const pages = Array.from(document.querySelectorAll('.homePage, .mainAnimatedPages .page, .page, [data-role="page"]'))
+      .filter(isVisiblePageCandidate);
 
-    const homePage = visiblePages.find(page => /home/i.test(page.id || page.className || ''))
-      || document.querySelector('.homePage:not([style*="display: none"])')
-      || document.querySelector('.mainAnimatedPages .page:not([style*="display: none"])')
-      || document.querySelector('.skinBody .mainAnimatedPages')
+    const scored = pages
+      .map((page, index) => ({ page, score: scoreHomePageCandidate(page, index) }))
+      .filter(item => item.score > -500)
+      .sort((a, b) => b.score - a.score);
+
+    if (scored.length) {
+      return getHomeContainerFromPage(scored[0].page);
+    }
+
+    const fallback = document.querySelector('.skinBody .mainAnimatedPages')
       || document.querySelector('.mainAnimatedPages');
-
-    if (!homePage) return null;
-
-    return homePage.querySelector('.content-primary')
-      || homePage.querySelector('.sections')
-      || homePage;
+    return fallback instanceof HTMLElement ? fallback : null;
   }
 
   function getHomeSections(container) {
@@ -1421,8 +1452,11 @@
     updateDiscoverMenuState();
     ensureDiscoverPage();
     if (homeActive) {
+      const container = getHomeContentContainer();
+      const section = document.getElementById('js-seerr-coming-soon');
+      const needsFreshAttempts = enteredHome || !section || !container || section.parentElement !== container;
       queueComingSoonRender(0, true);
-      scheduleComingSoonHomeRenderAttempts(enteredHome);
+      scheduleComingSoonHomeRenderAttempts(needsFreshAttempts);
     } else {
       queueComingSoonRender();
     }

@@ -30,6 +30,7 @@
   let comingSoonRenderTimer = null;
   let comingSoonHomeRenderAttemptsActive = false;
   let comingSoonHomeRenderAttemptToken = 0;
+  let lastWasHomeRoute = false;
   let suppressBrowseAnchorRedirect = false;
   let discoverExitRefreshTimer = null;
   let lastNonDiscoverHash = '#/home.html';
@@ -152,8 +153,13 @@
     return allowed.includes(value) ? value : 'top';
   }
 
-  function queueComingSoonRender(delay = 80) {
-    if (comingSoonRenderTimer) return;
+  function queueComingSoonRender(delay = 80, force = false) {
+    if (comingSoonRenderTimer) {
+      if (!force) return;
+      clearTimeout(comingSoonRenderTimer);
+      comingSoonRenderTimer = null;
+    }
+
     comingSoonRenderTimer = setTimeout(() => {
       comingSoonRenderTimer = null;
       renderComingSoonSection();
@@ -169,7 +175,7 @@
       setTimeout(() => {
         if (token !== comingSoonHomeRenderAttemptToken) return;
         if (isHomeRoute() && !isDiscoverRoute()) {
-          queueComingSoonRender(0);
+          queueComingSoonRender(0, true);
         }
         if (index === delays.length - 1) {
           comingSoonHomeRenderAttemptsActive = false;
@@ -1401,6 +1407,10 @@
   }
 
   function handleRouteChange() {
+    const homeActive = isHomeRoute() && !isDiscoverRoute();
+    const enteredHome = homeActive && !lastWasHomeRoute;
+    lastWasHomeRoute = homeActive;
+
     if (!comingSoonConfigLoaded && !comingSoonConfigLoading) {
       loadPluginRuntimeConfig();
     }
@@ -1410,9 +1420,9 @@
     bindBrowseAnchorButtons();
     updateDiscoverMenuState();
     ensureDiscoverPage();
-    if (isHomeRoute() && !isDiscoverRoute()) {
-      queueComingSoonRender(0);
-      scheduleComingSoonHomeRenderAttempts();
+    if (homeActive) {
+      queueComingSoonRender(0, true);
+      scheduleComingSoonHomeRenderAttempts(enteredHome);
     } else {
       queueComingSoonRender();
     }

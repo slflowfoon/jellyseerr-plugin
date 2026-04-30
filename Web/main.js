@@ -325,16 +325,10 @@
   }
 
   async function seerrComingSoonRequests() {
-    const responses = await Promise.all([
-      seerrRequests('processing'),
-      seerrRequests('approved'),
-      seerrRequests('pending'),
-      seerrRequests('all')
-    ]);
+    const response = await seerrRequests('processing');
     const byKey = new Map();
 
-    responses
-      .flatMap(normalizeRequestItems)
+    normalizeRequestItems(response)
       .filter(isComingSoonRequest)
       .forEach(request => {
         const key = getRequestProcessingKey(request);
@@ -1395,6 +1389,7 @@
     updateDiscoverMenuState();
     ensureDiscoverPage();
     if (isHomeRoute() && !isDiscoverRoute()) {
+      queueComingSoonRender(0);
       scheduleComingSoonHomeRenderAttempts();
     } else {
       queueComingSoonRender();

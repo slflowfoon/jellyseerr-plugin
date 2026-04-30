@@ -7,7 +7,6 @@
   const Status = { UNKNOWN: 1, PENDING: 2, PROCESSING: 3, PARTIAL: 4, AVAILABLE: 5 };
   const TRACKED_REQUESTS_KEY = 'jellyseerr_tracked_requests';
   const LATEST_LIBRARY_ITEMS_KEY = 'jellyseerr_latest_library_items';
-  const COMING_SOON_POSITION_KEY = 'jellyseerr_coming_soon_position';
   const REQUEST_POLL_MS = 120000;
   const PROCESSING_REQUEST_POLL_MS = 120000;
   const LATEST_LIBRARY_POLL_MS = 60000;
@@ -25,8 +24,10 @@
   let latestLibraryPollTimer = null;
   let discoverMounted = false;
   let comingSoonItems = [];
-  let comingSoonPosition = loadCachedComingSoonPosition() || 'top';
-  let comingSoonConfigLoaded = Boolean(loadCachedComingSoonPosition());
+  let comingSoonPosition = 'top';
+  let comingSoonConfigLoaded = false;
+  let comingSoonConfigLoading = false;
+  let comingSoonRenderTimer = null;
   let suppressBrowseAnchorRedirect = false;
   let discoverExitRefreshTimer = null;
   let lastNonDiscoverHash = '#/home.html';
@@ -141,25 +142,17 @@
   }
 
   function normalizeComingSoonPosition(value) {
+    value = String(value || '').trim().toLowerCase();
     const allowed = ['top', 'after-my-media', 'after-recently-added', 'bottom', 'disabled'];
     return allowed.includes(value) ? value : 'top';
   }
 
-  function loadCachedComingSoonPosition() {
-    try {
-      const value = localStorage.getItem(COMING_SOON_POSITION_KEY);
-      return value ? normalizeComingSoonPosition(value) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function saveCachedComingSoonPosition(value) {
-    try {
-      localStorage.setItem(COMING_SOON_POSITION_KEY, normalizeComingSoonPosition(value));
-    } catch {
-      // Ignore storage failures; server-side plugin config remains authoritative.
-    }
+  function queueComingSoonRender(delay = 80) {
+    clearTimeout(comingSoonRenderTimer);
+    comingSoonRenderTimer = setTimeout(() => {
+      comingSoonRenderTimer = null;
+      renderComingSoonSection();
+    }, delay);
   }
 
   function trackRequestedItem(mediaType, mediaId, title) {
@@ -343,15 +336,17 @@
   }
 
   async function loadPluginRuntimeConfig() {
+    if (comingSoonConfigLoading) return;
+    comingSoonConfigLoading = true;
     try {
       const cfg = await window.ApiClient.getPluginConfiguration(GUID);
       comingSoonPosition = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
-      saveCachedComingSoonPosition(comingSoonPosition);
       comingSoonConfigLoaded = true;
-      renderComingSoonSection();
+      queueComingSoonRender();
     } catch {
-      comingSoonPosition = loadCachedComingSoonPosition() || 'top';
-      comingSoonConfigLoaded = true;
+      comingSoonConfigLoaded = false;
+    } finally {
+      comingSoonConfigLoading = false;
     }
   }
 
@@ -700,12 +695,12 @@
     const requests = await seerrComingSoonRequests();
     if (!requests.length) {
       comingSoonItems = [];
-      renderComingSoonSection();
+      queueComingSoonRender();
       return;
     }
 
     comingSoonItems = await Promise.all(requests.map(buildComingSoonItem));
-    renderComingSoonSection();
+    queueComingSoonRender();
   }
 
   function startProcessingRequestPolling() {
@@ -746,25 +741,24 @@
   }
 
   function getComingSoonPlacement(container) {
+    const sections = getHomeSections(container);
+
     if (comingSoonPosition === 'bottom') {
       return { ready: true, before: null };
     }
 
     // Use getHomeSections (which excludes #js-seerr-coming-soon) so the anchor is
-    // never the Coming Soon element itself — that would make isComingSoonPlaced always
-    // return false and cause an infinite observer→render loop.
-    const sections = getHomeSections(container);
-
+    // never the Coming Soon element itself. Otherwise isComingSoonPlaced can keep
+    // returning false and trigger repeated observer/render work.
     if (comingSoonPosition === 'after-my-media') {
       const idx = sections.findIndex(s => /my media|libraries/i.test(getSectionText(s)));
-      if (idx === -1) return { ready: false, before: null };
-      return { ready: true, before: sections[idx + 1] || null };
+      const targetIndex = idx === -1 ? 0 : idx;
+      return sections[targetIndex] ? { ready: true, before: sections[targetIndex + 1] || null } : { ready: false, before: null };
     }
 
     if (comingSoonPosition === 'after-recently-added') {
       const idx = sections.findIndex(s => /recently added|latest media|newly added/i.test(getSectionText(s)));
-      if (idx === -1) return { ready: false, before: null };
-      return { ready: true, before: sections[idx + 1] || null };
+      return idx === -1 ? { ready: true, before: null } : { ready: true, before: sections[idx + 1] || null };
     }
 
     return { ready: true, before: sections[0] || null };
@@ -946,9 +940,8 @@
         comingSoonPositionInput.value = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
       }
       comingSoonPosition = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
-      saveCachedComingSoonPosition(comingSoonPosition);
       comingSoonConfigLoaded = true;
-      renderComingSoonSection();
+      queueComingSoonRender();
       setConfigStatus(view, '', true);
     } catch {
       setConfigStatus(view, 'Could not load plugin settings', false);
@@ -982,9 +975,8 @@
         cfg.ComingSoonPosition = normalizeComingSoonPosition(comingSoonPositionInput.value);
         await window.ApiClient.updatePluginConfiguration(GUID, cfg);
         comingSoonPosition = cfg.ComingSoonPosition;
-        saveCachedComingSoonPosition(comingSoonPosition);
         comingSoonConfigLoaded = true;
-        renderComingSoonSection();
+        queueComingSoonRender();
         setConfigStatus(view, 'Saved', true);
       } catch {
         setConfigStatus(view, 'Save failed', false);
@@ -1353,13 +1345,13 @@
   }
 
   function scheduleComingSoonRenderAfterHomeRemount() {
-    // Don't remove the section before each retry — if comingSoonItems is empty
+    // Don't remove the section before each retry; if comingSoonItems is empty
     // mid-flight the remove sticks and the section never comes back. Just attempt
     // to render; renderComingSoonSection's placement check handles idempotency.
-    [120, 350, 800, 1400, 2200].forEach(delay => {
+    [120, 350, 800, 1400, 2200, 3500].forEach(delay => {
       setTimeout(() => {
         if (isHomeRoute() && !isDiscoverRoute()) {
-          renderComingSoonSection();
+          queueComingSoonRender(0);
         }
       }, delay);
     });
@@ -1382,13 +1374,16 @@
   }
 
   function handleRouteChange() {
+    if (!comingSoonConfigLoaded && !comingSoonConfigLoading) {
+      loadPluginRuntimeConfig();
+    }
     rememberNonDiscoverRoute();
     injectDiscoverMenuLink();
     injectBrowseDiscoverButton();
     bindBrowseAnchorButtons();
     updateDiscoverMenuState();
     ensureDiscoverPage();
-    renderComingSoonSection();
+    queueComingSoonRender();
   }
 
   async function loadDiscoverSections() {

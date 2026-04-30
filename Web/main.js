@@ -7,6 +7,7 @@
   const Status = { UNKNOWN: 1, PENDING: 2, PROCESSING: 3, PARTIAL: 4, AVAILABLE: 5 };
   const TRACKED_REQUESTS_KEY = 'jellyseerr_tracked_requests';
   const LATEST_LIBRARY_ITEMS_KEY = 'jellyseerr_latest_library_items';
+  const COMING_SOON_POSITION_KEY = 'jellyseerr_coming_soon_position';
   const REQUEST_POLL_MS = 120000;
   const PROCESSING_REQUEST_POLL_MS = 120000;
   const LATEST_LIBRARY_POLL_MS = 60000;
@@ -24,8 +25,8 @@
   let latestLibraryPollTimer = null;
   let discoverMounted = false;
   let comingSoonItems = [];
-  let comingSoonPosition = 'top';
-  let comingSoonConfigLoaded = false;
+  let comingSoonPosition = loadCachedComingSoonPosition() || 'top';
+  let comingSoonConfigLoaded = Boolean(loadCachedComingSoonPosition());
   let comingSoonRenderRetryTimer = null;
   let suppressBrowseAnchorRedirect = false;
   let discoverExitRefreshTimer = null;
@@ -143,6 +144,23 @@
   function normalizeComingSoonPosition(value) {
     const allowed = ['top', 'after-my-media', 'after-recently-added', 'bottom', 'disabled'];
     return allowed.includes(value) ? value : 'top';
+  }
+
+  function loadCachedComingSoonPosition() {
+    try {
+      const value = localStorage.getItem(COMING_SOON_POSITION_KEY);
+      return value ? normalizeComingSoonPosition(value) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveCachedComingSoonPosition(value) {
+    try {
+      localStorage.setItem(COMING_SOON_POSITION_KEY, normalizeComingSoonPosition(value));
+    } catch {
+      // Ignore storage failures; server-side plugin config remains authoritative.
+    }
   }
 
   function trackRequestedItem(mediaType, mediaId, title) {
@@ -329,10 +347,11 @@
     try {
       const cfg = await window.ApiClient.getPluginConfiguration(GUID);
       comingSoonPosition = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
+      saveCachedComingSoonPosition(comingSoonPosition);
       comingSoonConfigLoaded = true;
       renderComingSoonSection();
     } catch {
-      comingSoonPosition = 'top';
+      comingSoonPosition = loadCachedComingSoonPosition() || 'top';
       comingSoonConfigLoaded = true;
     }
   }
@@ -727,41 +746,38 @@
     return getHomeSections(container).find(section => pattern.test(getSectionText(section))) || null;
   }
 
-  function isComingSoonPlacedInContainer(container, section) {
-    return section.parentElement === container;
-  }
-
-  function placeComingSoonSection(container, section) {
+  function getComingSoonPlacement(container) {
     if (comingSoonPosition === 'bottom') {
-      container.appendChild(section);
-      return;
+      return { ready: true, before: null };
     }
 
     if (comingSoonPosition === 'after-my-media') {
       const myMedia = findHomeSection(container, /my media|libraries/i);
-      if (myMedia?.nextSibling) {
-        container.insertBefore(section, myMedia.nextSibling);
-      } else if (myMedia) {
-        container.appendChild(section);
-      } else {
-        container.insertBefore(section, container.firstElementChild || null);
-      }
-      return;
+      return myMedia ? { ready: true, before: myMedia.nextSibling } : { ready: false, before: null };
     }
 
     if (comingSoonPosition === 'after-recently-added') {
       const recentlyAdded = findHomeSection(container, /recently added|latest media|newly added/i);
-      if (recentlyAdded?.nextSibling) {
-        container.insertBefore(section, recentlyAdded.nextSibling);
-      } else if (recentlyAdded) {
-        container.appendChild(section);
-      } else {
-        container.insertBefore(section, container.firstElementChild || null);
-      }
-      return;
+      return recentlyAdded ? { ready: true, before: recentlyAdded.nextSibling } : { ready: false, before: null };
     }
 
-    container.insertBefore(section, container.firstElementChild || null);
+    return { ready: true, before: container.firstElementChild };
+  }
+
+  function isComingSoonPlaced(container, section, placement) {
+    return section.parentElement === container && section.nextSibling === placement.before;
+  }
+
+  function retryComingSoonRender(delay = 500) {
+    clearTimeout(comingSoonRenderRetryTimer);
+    comingSoonRenderRetryTimer = setTimeout(renderComingSoonSection, delay);
+  }
+
+  function placeComingSoonSection(container, section) {
+    const placement = getComingSoonPlacement(container);
+    if (!placement.ready) return false;
+    container.insertBefore(section, placement.before);
+    return true;
   }
 
   function renderComingSoonCard(item) {
@@ -802,18 +818,23 @@
 
     const container = getHomeContentContainer();
     if (!container) {
-      clearTimeout(comingSoonRenderRetryTimer);
-      comingSoonRenderRetryTimer = setTimeout(renderComingSoonSection, 500);
+      retryComingSoonRender();
       return;
     }
     clearTimeout(comingSoonRenderRetryTimer);
 
     const section = existing || document.createElement('section');
+    const placement = getComingSoonPlacement(container);
+    if (!placement.ready) {
+      retryComingSoonRender();
+      return;
+    }
+
     const signature = [
       comingSoonPosition,
       comingSoonItems.map(item => item.key + ':' + item.title + ':' + (item.poster || '')).join('|')
     ].join('::');
-    if (existing?.dataset.signature === signature && isComingSoonPlacedInContainer(container, existing)) return;
+    if (existing?.dataset.signature === signature && isComingSoonPlaced(container, existing, placement)) return;
 
     section.id = 'js-seerr-coming-soon';
     section.className = 'js-seerr-comingSoonSection';
@@ -827,7 +848,10 @@
       '</div>'
     ].join('');
 
-    placeComingSoonSection(container, section);
+    if (!placeComingSoonSection(container, section)) {
+      retryComingSoonRender();
+      return;
+    }
     bindComingSoonSection(section);
   }
 
@@ -920,6 +944,8 @@
         comingSoonPositionInput.value = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
       }
       comingSoonPosition = normalizeComingSoonPosition(cfg.ComingSoonPosition || 'top');
+      saveCachedComingSoonPosition(comingSoonPosition);
+      comingSoonConfigLoaded = true;
       renderComingSoonSection();
       setConfigStatus(view, '', true);
     } catch {
@@ -954,6 +980,8 @@
         cfg.ComingSoonPosition = normalizeComingSoonPosition(comingSoonPositionInput.value);
         await window.ApiClient.updatePluginConfiguration(GUID, cfg);
         comingSoonPosition = cfg.ComingSoonPosition;
+        saveCachedComingSoonPosition(comingSoonPosition);
+        comingSoonConfigLoaded = true;
         renderComingSoonSection();
         setConfigStatus(view, 'Saved', true);
       } catch {
@@ -1326,6 +1354,7 @@
     [120, 350, 800, 1400, 2200].forEach(delay => {
       setTimeout(() => {
         if (isHomeRoute() && !isDiscoverRoute()) {
+          document.getElementById('js-seerr-coming-soon')?.remove();
           renderComingSoonSection();
         }
       }, delay);

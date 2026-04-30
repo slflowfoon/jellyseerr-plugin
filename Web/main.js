@@ -750,21 +750,32 @@
       return { ready: true, before: null };
     }
 
+    // Use getHomeSections (which excludes #js-seerr-coming-soon) so the anchor is
+    // never the Coming Soon element itself — that would make isComingSoonPlaced always
+    // return false and cause an infinite observer→render loop.
+    const sections = getHomeSections(container);
+
     if (comingSoonPosition === 'after-my-media') {
-      const myMedia = findHomeSection(container, /my media|libraries/i);
-      return myMedia ? { ready: true, before: myMedia.nextSibling } : { ready: false, before: null };
+      const idx = sections.findIndex(s => /my media|libraries/i.test(getSectionText(s)));
+      if (idx === -1) return { ready: false, before: null };
+      return { ready: true, before: sections[idx + 1] || null };
     }
 
     if (comingSoonPosition === 'after-recently-added') {
-      const recentlyAdded = findHomeSection(container, /recently added|latest media|newly added/i);
-      return recentlyAdded ? { ready: true, before: recentlyAdded.nextSibling } : { ready: false, before: null };
+      const idx = sections.findIndex(s => /recently added|latest media|newly added/i.test(getSectionText(s)));
+      if (idx === -1) return { ready: false, before: null };
+      return { ready: true, before: sections[idx + 1] || null };
     }
 
-    return { ready: true, before: container.firstElementChild };
+    return { ready: true, before: sections[0] || null };
   }
 
   function isComingSoonPlaced(container, section, placement) {
-    return section.parentElement === container && section.nextSibling === placement.before;
+    if (section.parentElement !== container) return false;
+    // Use nextElementSibling (skips text nodes) consistent with how sections are
+    // computed by getHomeSections.
+    if (placement.before === null) return section === container.lastElementChild;
+    return section.nextElementSibling === placement.before;
   }
 
   function placeComingSoonSection(container, section) {
@@ -1342,10 +1353,12 @@
   }
 
   function scheduleComingSoonRenderAfterHomeRemount() {
+    // Don't remove the section before each retry — if comingSoonItems is empty
+    // mid-flight the remove sticks and the section never comes back. Just attempt
+    // to render; renderComingSoonSection's placement check handles idempotency.
     [120, 350, 800, 1400, 2200].forEach(delay => {
       setTimeout(() => {
         if (isHomeRoute() && !isDiscoverRoute()) {
-          document.getElementById('js-seerr-coming-soon')?.remove();
           renderComingSoonSection();
         }
       }, delay);

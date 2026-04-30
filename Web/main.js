@@ -43,6 +43,9 @@
 
   function getToken() {
     try {
+      const apiToken = window.ApiClient?.accessToken?.();
+      if (apiToken) return apiToken;
+      if (window.ApiClient?._serverInfo?.AccessToken) return window.ApiClient._serverInfo.AccessToken;
       const creds = JSON.parse(localStorage.getItem('jellyfin_credentials') || '{}');
       return creds.Servers?.[0]?.AccessToken || '';
     } catch { return ''; }
@@ -220,6 +223,7 @@
 
   async function apiFetch(path, opts = {}) {
     const token = getToken();
+    if (!token) throw new Error('Missing Jellyfin token');
     const headers = { 'X-MediaBrowser-Token': token, ...opts.headers };
     const resp = await fetch(path, { ...opts, headers });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -351,6 +355,11 @@
 
   async function loadPluginRuntimeConfig() {
     if (comingSoonConfigLoading) return;
+    if (!getToken()) {
+      setTimeout(loadPluginRuntimeConfig, 1000);
+      return;
+    }
+
     comingSoonConfigLoading = true;
     try {
       const cfg = await apiFetch(API + '/RuntimeConfig');
@@ -359,6 +368,7 @@
       scheduleComingSoonHomeRenderAttempts();
     } catch {
       comingSoonConfigLoaded = false;
+      setTimeout(loadPluginRuntimeConfig, 3000);
     } finally {
       comingSoonConfigLoading = false;
     }
@@ -706,7 +716,19 @@
   }
 
   async function pollProcessingRequests() {
-    const requests = await seerrComingSoonRequests();
+    if (!getToken()) {
+      setTimeout(pollProcessingRequests, 1000);
+      return;
+    }
+
+    let requests = [];
+    try {
+      requests = await seerrComingSoonRequests();
+    } catch {
+      setTimeout(pollProcessingRequests, 3000);
+      return;
+    }
+
     if (!requests.length) {
       comingSoonItems = [];
       scheduleComingSoonHomeRenderAttempts();

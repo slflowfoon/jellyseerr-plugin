@@ -14,8 +14,6 @@
   const MAX_KNOWN_LATEST_ITEMS = 200;
 
   let lastHref = '';
-  let lastDetailId = null;
-  let retryTimer = null;
   let discoverSearchTimer = null;
   let discoverPageLoading = false;
   let discoverRequestInFlight = false;
@@ -1108,109 +1106,6 @@
     bindConfigPage(document.getElementById('jellySeerrConfigPage'));
   }
 
-  function btnStyle(color) {
-    return [
-      'margin:4px 8px 4px 0', 'padding:7px 18px',
-      'border:none', 'border-radius:4px',
-      'background:' + color, 'color:#fff',
-      'font-size:13px', 'font-weight:600',
-      'cursor:pointer', 'vertical-align:middle',
-      'transition:opacity .15s'
-    ].join(';');
-  }
-
-  function findDetailContainer() {
-    const selectors = [
-      '.detailButtons',
-      '.itemDetailButtons',
-      '[class*="detailButton"]',
-      '[class*="DetailButton"]'
-    ];
-
-    for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el) return el;
-    }
-
-    const known = ['Play', 'Shuffle', 'Trailer', 'More'].map(t =>
-      document.querySelector('button[title="' + t + '"]')
-    ).find(Boolean);
-    return known ? known.parentElement : null;
-  }
-
-  async function injectDetailButton() {
-    if (!isDetailPage() || isDiscoverRoute()) return;
-
-    const itemId = getItemId();
-    if (!itemId) return;
-
-    if (itemId !== lastDetailId) {
-      document.getElementById('js-request-btn')?.remove();
-    }
-    if (document.getElementById('js-request-btn')) return;
-
-    const container = findDetailContainer();
-    if (!container) {
-      retryTimer = setTimeout(injectDetailButton, 600);
-      return;
-    }
-
-    lastDetailId = itemId;
-    const item = await getJellyfinItem(itemId);
-    if (!item?.ProviderIds?.Tmdb) return;
-    if (!['Movie', 'Series'].includes(item.Type)) return;
-
-    const mediaType = item.Type === 'Series' ? 'tv' : 'movie';
-    const tmdbId = item.ProviderIds.Tmdb;
-    const data = await seerrStatus(mediaType, tmdbId);
-    const info = statusInfo(data?.mediaInfo?.status, mediaType);
-
-    if (data?.mediaInfo?.status === Status.AVAILABLE) {
-      return;
-    }
-
-    const btn = document.createElement('button');
-    btn.id = 'js-request-btn';
-    btn.textContent = '...';
-    btn.disabled = true;
-    btn.style.cssText = btnStyle('#555');
-    container.appendChild(btn);
-
-    btn.textContent = info.label;
-    btn.style.cssText = btnStyle(info.color);
-    btn.disabled = info.disabled;
-
-    if (!info.disabled) {
-      btn.addEventListener('click', async () => {
-        const currentData = await seerrStatus(mediaType, tmdbId) || data;
-        const result = await submitRequest(btn, mediaType, tmdbId, currentData);
-        if (result === false) {
-          const reset = statusInfo(currentData?.mediaInfo?.status, mediaType);
-          btn.textContent = reset.label;
-          btn.style.cssText = btnStyle(reset.color);
-          btn.disabled = reset.disabled;
-          return;
-        }
-
-        const refreshed = await seerrStatus(mediaType, tmdbId);
-        if (!refreshed) {
-          btn.textContent = 'Failed - retry';
-          btn.style.cssText = btnStyle('#e53935');
-          btn.disabled = false;
-          return;
-        }
-
-        const done = statusInfo(refreshed?.mediaInfo?.status, mediaType);
-        btn.textContent = done.label;
-        btn.style.cssText = btnStyle(done.color);
-        btn.disabled = done.disabled;
-        if (refreshed?.mediaInfo?.status !== Status.AVAILABLE) {
-          trackRequestedItem(mediaType, Number(tmdbId), item.Name || 'Requested item');
-        }
-      });
-    }
-  }
-
   function getDrawerContainer() {
     return document.querySelector('.mainDrawer .scrollContainer')
       || document.querySelector('.mainDrawer .drawerContent')
@@ -1748,12 +1643,7 @@
 
     if (href !== lastHref) {
       lastHref = href;
-      lastDetailId = null;
-      clearTimeout(retryTimer);
-      if (isDetailPage()) retryTimer = setTimeout(injectDetailButton, 800);
-    } else if (isDetailPage() && !document.getElementById('js-request-btn')) {
-      clearTimeout(retryTimer);
-      retryTimer = setTimeout(injectDetailButton, 600);
+      document.getElementById('js-request-btn')?.remove();
     }
   });
 
@@ -1794,7 +1684,7 @@
         pollLatestLibraryItems();
       }
     });
-    if (isDetailPage()) setTimeout(injectDetailButton, 800);
+    document.getElementById('js-request-btn')?.remove();
   }
 
   if (document.readyState === 'loading') {

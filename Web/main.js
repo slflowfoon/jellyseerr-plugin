@@ -97,7 +97,8 @@
       '.js-seerr-comingSoonSection { margin:1.25rem 0 .9rem; padding:0 3.3%; color:var(--theme-text-color, #fff); }',
       '.js-seerr-comingSoonHeader { margin:0 0 .75rem; }',
       '.js-seerr-comingSoonTitle { margin:0; }',
-      '.js-seerr-comingSoonRow { display:flex; gap:1rem; overflow-x:auto; overscroll-behavior-x:contain; touch-action:pan-x; padding:.2rem 0 .35rem; }',
+      '.js-seerr-comingSoonRow { display:flex; gap:1rem; overflow-x:auto; overscroll-behavior-x:contain; touch-action:pan-x pan-y; padding:.2rem 0 .35rem; scrollbar-width:none; -ms-overflow-style:none; }',
+      '.js-seerr-comingSoonRow::-webkit-scrollbar { display:none; }',
       '.js-seerr-comingSoonCard { flex:0 0 170px; max-width:170px; display:flex; flex-direction:column; gap:.55rem; color:inherit; }',
       '.js-seerr-comingSoonPosterWrap { position:relative; width:100%; aspect-ratio:2/3; border:none; border-radius:8px; overflow:hidden; background:var(--js-seerr-surface); color:#fff; padding:0; box-shadow:0 0 0 1px var(--js-seerr-border); }',
       '.js-seerr-comingSoonPoster { width:100%; height:100%; object-fit:cover; display:block; }',
@@ -874,8 +875,25 @@
     const row = section.querySelector('.js-seerr-comingSoonRow');
     if (row && row.dataset.jsSeerrSwipeBound !== 'true') {
       row.dataset.jsSeerrSwipeBound = 'true';
-      ['touchstart', 'touchmove', 'wheel'].forEach(type => {
-        row.addEventListener(type, event => event.stopPropagation(), { passive: true });
+      let touchStartX = 0;
+      let touchStartY = 0;
+      row.addEventListener('touchstart', event => {
+        const touch = event.touches && event.touches[0];
+        if (!touch) return;
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+      }, { passive: true });
+      row.addEventListener('touchmove', event => {
+        const touch = event.touches && event.touches[0];
+        if (!touch) return;
+        const deltaX = Math.abs(touch.clientX - touchStartX);
+        const deltaY = Math.abs(touch.clientY - touchStartY);
+        if (deltaX > deltaY) event.stopPropagation();
+      }, { passive: true });
+      row.addEventListener('wheel', event => {
+        if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+          event.stopPropagation();
+        }
       });
     }
   }

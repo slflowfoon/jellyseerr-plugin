@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.51.0",
+        "changelog": "See GitHub release notes.",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/slflowfoon/jellyseerr-plugin/releases/download/v1.0.51/JellySeerr.zip",
+        "checksum": "95cd2192cc4285344dc3eb562df7bdcf",
+        "timestamp": "2026-08-12T09:35:12Z"
+      },
+      {
         "version": "1.0.50.0",
         "changelog": "See GitHub release notes.",
         "targetAbi": "10.10.0.0",

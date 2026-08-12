@@ -97,6 +97,7 @@
       '.js-seerr-comingSoonHeader { margin:0 0 .75rem; }',
       '.js-seerr-comingSoonTitle { margin:0; }',
       '.js-seerr-comingSoonRow { display:flex; gap:1rem; overflow-x:auto; overscroll-behavior-x:contain; touch-action:pan-x pan-y; padding:.2rem 0 .35rem; scrollbar-width:none; -ms-overflow-style:none; }',
+      '.js-seerr-comingSoonRow.scrollX { padding-left:0 !important; padding-right:0 !important; }',
       '.js-seerr-comingSoonRow::-webkit-scrollbar { display:none; }',
       '.js-seerr-comingSoonCard { flex:0 0 170px; max-width:170px; display:flex; flex-direction:column; gap:.55rem; color:inherit; }',
       '.js-seerr-comingSoonPosterWrap { position:relative; width:100%; aspect-ratio:2/3; border:none; border-radius:8px; overflow:hidden; background:var(--js-seerr-surface); color:#fff; padding:0; box-shadow:0 0 0 1px var(--js-seerr-border); }',

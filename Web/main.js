@@ -15,6 +15,7 @@
 
   let lastHref = '';
   let discoverSearchTimer = null;
+  let discoverSearchRequestId = 0;
   let discoverPageLoading = false;
   let discoverRequestInFlight = false;
   let requestPollTimer = null;
@@ -1388,6 +1389,7 @@
   }
 
   async function loadDiscoverSearch() {
+    const requestId = ++discoverSearchRequestId;
     const query = discoverState.query.trim();
     if (!query) {
       discoverState.loadingSearch = false;
@@ -1399,6 +1401,7 @@
     discoverState.loadingSearch = true;
     renderDiscoverPage();
     const data = await seerrSearch(query);
+    if (requestId !== discoverSearchRequestId || query !== discoverState.query.trim()) return;
     discoverState.searchResults = data?.results || [];
     discoverState.loadingSearch = false;
     renderDiscoverPage();
@@ -1556,7 +1559,11 @@
       });
     }
 
-    Array.from(page.querySelectorAll('[data-request-id]')).forEach(button => {
+    bindDiscoverRequestButtons(page);
+  }
+
+  function bindDiscoverRequestButtons(container) {
+    Array.from(container.querySelectorAll('[data-request-id]')).forEach(button => {
       if (button.disabled) return;
       button.addEventListener('click', async () => {
         if (discoverRequestInFlight) return;
@@ -1601,6 +1608,14 @@
     const page = document.getElementById('js-seerr-discover');
     if (!page) return;
 
+    const existingBody = page.querySelector('#js-seerr-discover-body');
+    if (existingBody) {
+      existingBody.innerHTML = renderDiscoverBody();
+      bindDiscoverRequestButtons(existingBody);
+      discoverMounted = true;
+      return;
+    }
+
     page.innerHTML = [
       '<div class="content-primary">',
       '  <div class="js-seerr-hero">',
@@ -1612,7 +1627,9 @@
       '  <div class="js-seerr-searchbar">',
       '    <input id="js-seerr-discover-search" class="emby-input" type="search" placeholder="Search Seerr for movies and TV shows..." autocomplete="off" />',
       '  </div>',
+      '  <div id="js-seerr-discover-body">',
       renderDiscoverBody(),
+      '  </div>',
       '</div>'
     ].join('');
 

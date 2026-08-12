@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Mime;
 using System.Net.Http;
 using System.Reflection;
@@ -16,6 +17,7 @@ namespace JellySeerr.Api;
 [Route("plugins/JellySeerr")]
 public class SeerrController : ControllerBase
 {
+    private const string JellyfinUserIdClaim = "Jellyfin-UserId";
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<SeerrController> _logger;
 
@@ -155,9 +157,34 @@ public class SeerrController : ControllerBase
                 : $"/api/v1/request/{Uri.EscapeDataString(requestId)}";
 
             var client = _httpClientFactory.CreateClient();
+            int? seerrUserId = null;
+            if (method == HttpMethod.Post)
+            {
+                var jellyfinUserIdValue = User.Claims
+                    .FirstOrDefault(claim => claim.Type.Equals(JellyfinUserIdClaim, StringComparison.OrdinalIgnoreCase))
+                    ?.Value;
+                if (!Guid.TryParse(jellyfinUserIdValue, out var jellyfinUserId))
+                {
+                    return Unauthorized("Could not identify the current Jellyfin user");
+                }
+
+                var userLookup = await ResolveSeerrUserId(client, url, key, jellyfinUserId);
+                if (!userLookup.Succeeded)
+                {
+                    return StatusCode(502, "Could not look up the linked Seerr user");
+                }
+
+                if (!userLookup.UserId.HasValue)
+                {
+                    return Conflict("This Jellyfin account is not linked to a Seerr user. Import or link the user in Seerr, then retry.");
+                }
+
+                seerrUserId = userLookup.UserId.Value;
+            }
+
             var req = new HttpRequestMessage(method, $"{url}{path}");
             req.Headers.Add("X-Api-Key", key);
-            req.Content = new StringContent(SerializeRequestBody(body), Encoding.UTF8, MediaTypeNames.Application.Json);
+            req.Content = new StringContent(SerializeRequestBody(body, seerrUserId), Encoding.UTF8, MediaTypeNames.Application.Json);
 
             var resp = await client.SendAsync(req);
             return await ToProxyResult(resp);
@@ -205,22 +232,80 @@ public class SeerrController : ControllerBase
         };
     }
 
-    private static string SerializeRequestBody(JsonElement body)
+    private async Task<(int? UserId, bool Succeeded)> ResolveSeerrUserId(
+        HttpClient client,
+        string url,
+        string key,
+        Guid jellyfinUserId)
     {
-        if (body.ValueKind != JsonValueKind.Object || !body.TryGetProperty("requestId", out _))
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"{url}/api/v1/user?take=100&skip=0");
+        req.Headers.Add("X-Api-Key", key);
+        using var resp = await client.SendAsync(req);
+        if (!resp.IsSuccessStatusCode)
+        {
+            _logger.LogWarning(
+                "JellySeerr: Seerr user lookup failed with status {StatusCode}",
+                (int)resp.StatusCode);
+            return (null, false);
+        }
+
+        var content = await resp.Content.ReadAsStringAsync();
+        try
+        {
+            using var document = JsonDocument.Parse(content);
+            if (!document.RootElement.TryGetProperty("results", out var results)
+                || results.ValueKind != JsonValueKind.Array)
+            {
+                _logger.LogWarning("JellySeerr: Seerr user lookup returned an unexpected response");
+                return (null, false);
+            }
+
+            foreach (var user in results.EnumerateArray())
+            {
+                if (!user.TryGetProperty("jellyfinUserId", out var jellyfinIdProperty)
+                    || jellyfinIdProperty.ValueKind != JsonValueKind.String
+                    || !Guid.TryParse(jellyfinIdProperty.GetString(), out var linkedJellyfinUserId)
+                    || linkedJellyfinUserId != jellyfinUserId
+                    || !user.TryGetProperty("id", out var seerrIdProperty)
+                    || !seerrIdProperty.TryGetInt32(out var seerrId))
+                {
+                    continue;
+                }
+
+                return (seerrId, true);
+            }
+
+            return (null, true);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "JellySeerr: Could not parse Seerr user lookup response");
+            return (null, false);
+        }
+    }
+
+    private static string SerializeRequestBody(JsonElement body, int? seerrUserId)
+    {
+        if (body.ValueKind != JsonValueKind.Object)
         {
             return body.GetRawText();
         }
 
-        var payload = new Dictionary<string, JsonElement>();
+        var payload = new Dictionary<string, object?>();
         foreach (var prop in body.EnumerateObject())
         {
-            if (prop.NameEquals("requestId"))
+            if (prop.NameEquals("requestId")
+                || prop.Name.Equals("userId", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
             payload[prop.Name] = prop.Value.Clone();
+        }
+
+        if (seerrUserId.HasValue)
+        {
+            payload["userId"] = seerrUserId.Value;
         }
 
         return JsonSerializer.Serialize(payload);

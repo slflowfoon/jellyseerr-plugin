@@ -230,7 +230,17 @@
     if (!token) throw new Error('Missing Jellyfin token');
     const headers = { 'X-MediaBrowser-Token': token, ...opts.headers };
     const resp = await fetch(path, { ...opts, headers });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    if (!resp.ok) {
+      const text = await resp.text();
+      let message = text;
+      try {
+        const data = JSON.parse(text);
+        message = typeof data === 'string' ? data : (data?.detail || data?.message || data?.title || text);
+      } catch { /* use the response text */ }
+      const error = new Error(message || ('HTTP ' + resp.status));
+      error.status = resp.status;
+      throw error;
+    }
     return resp.json();
   }
 
@@ -323,7 +333,13 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-    } catch { return null; }
+    } catch (error) {
+      showToast(
+        'Request failed',
+        error instanceof Error ? error.message : 'Could not submit the request to Seerr.'
+      );
+      return null;
+    }
   }
 
   async function seerrRequests(filter = 'processing') {

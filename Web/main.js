@@ -114,7 +114,7 @@
       '#js-seerr-nav .navMenuOptionText { margin-left:0 !important; }',
       '#js-seerr-nav .navMenuOptionIcon { margin-right:1.15rem; }',
       '@keyframes jsSeerrToastIn { to { transform:translateY(0); opacity:1; } }',
-      '@media (max-width: 900px) { #js-seerr-discover.page { padding: 1rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } .js-seerr-comingSoonCard { flex-basis:140px; max-width:140px; } }'
+      '@media (max-width: 900px) { #js-seerr-discover.page { padding: 1rem; } .js-seerr-hero { flex-wrap:nowrap; } .js-seerr-actions { width:auto; flex:0 0 auto; } .js-seerr-actions .js-seerr-pill { flex:none; padding:.5em .75em; font-size:.9rem; white-space:nowrap; } .js-seerr-comingSoonCard { flex-basis:140px; max-width:140px; } }'
     ].join('\n');
     document.head.appendChild(style);
   }

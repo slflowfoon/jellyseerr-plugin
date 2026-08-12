@@ -873,21 +873,6 @@
     const row = section.querySelector('.js-seerr-comingSoonRow');
     if (row && row.dataset.jsSeerrSwipeBound !== 'true') {
       row.dataset.jsSeerrSwipeBound = 'true';
-      let touchStartX = 0;
-      let touchStartY = 0;
-      row.addEventListener('touchstart', event => {
-        const touch = event.touches && event.touches[0];
-        if (!touch) return;
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
-      }, { passive: true });
-      row.addEventListener('touchmove', event => {
-        const touch = event.touches && event.touches[0];
-        if (!touch) return;
-        const deltaX = Math.abs(touch.clientX - touchStartX);
-        const deltaY = Math.abs(touch.clientY - touchStartY);
-        if (deltaX > deltaY) event.stopPropagation();
-      }, { passive: true });
       row.addEventListener('wheel', event => {
         if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
           event.stopPropagation();
@@ -928,7 +913,7 @@
       '<div class="js-seerr-comingSoonHeader sectionTitleContainer">',
       '  <h2 class="js-seerr-comingSoonTitle sectionTitle">Coming Soon</h2>',
       '</div>',
-      '<div class="js-seerr-comingSoonRow">',
+      '<div class="js-seerr-comingSoonRow scrollX hiddenScrollX">',
       comingSoonItems.map(renderComingSoonCard).join(''),
       '</div>'
     ].join('');

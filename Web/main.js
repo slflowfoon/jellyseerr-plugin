@@ -1440,6 +1440,7 @@
     } else if (page.parentElement !== host) {
       host.appendChild(page);
     }
+    page.classList.add('libraryPage', 'pageWithAbsoluteTabs');
 
     setDiscoverHostVisibility(host, true);
 

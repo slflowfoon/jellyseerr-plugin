@@ -93,11 +93,9 @@
       '.js-seerr-toast { min-width:280px; max-width:360px; background:rgba(24,24,24,.96); color:#fff; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.35); border:1px solid var(--js-seerr-border); padding:.95rem 1rem; transform:translateY(-6px); opacity:0; animation: jsSeerrToastIn .2s ease forwards; }',
       '.js-seerr-toastTitle { font-size:.9rem; color:var(--js-seerr-accent); margin-bottom:.25rem; }',
       '.js-seerr-toastBody { font-size:.98rem; line-height:1.35; }',
-      '.js-seerr-comingSoonSection { margin:1.25rem 0 .9rem; padding:0 3.3%; color:var(--theme-text-color, #fff); }',
-      '.js-seerr-comingSoonHeader { margin:0 0 .75rem; }',
-      '.js-seerr-comingSoonTitle { margin:0; }',
-      '.js-seerr-comingSoonRow { display:flex; gap:1rem; overflow-x:auto; overscroll-behavior-x:contain; touch-action:pan-x pan-y; padding:.2rem 0 .35rem; scrollbar-width:none; -ms-overflow-style:none; }',
-      '.js-seerr-comingSoonRow.scrollX { padding-left:0 !important; padding-right:0 !important; }',
+      '.js-seerr-comingSoonSection { color:var(--theme-text-color, #fff); }',
+      '.js-seerr-comingSoonRow { display:flex; gap:1rem; overflow-x:auto; overscroll-behavior-x:contain; touch-action:pan-x pan-y; padding-top:.2rem; padding-bottom:.35rem; scrollbar-width:none; -ms-overflow-style:none; }',
+      '.js-seerr-comingSoonRow.scrollX { padding-left:max(var(--sidePadding, 3.3%), env(safe-area-inset-left)) !important; padding-right:max(var(--sidePadding, 3.3%), env(safe-area-inset-right)) !important; }',
       '.js-seerr-comingSoonRow::-webkit-scrollbar { display:none; }',
       '.js-seerr-comingSoonCard { flex:0 0 170px; max-width:170px; display:flex; flex-direction:column; gap:.55rem; color:inherit; }',
       '.js-seerr-comingSoonPosterWrap { position:relative; width:100%; aspect-ratio:2/3; border:none; border-radius:8px; overflow:hidden; background:var(--js-seerr-surface); color:#fff; padding:0; box-shadow:0 0 0 1px var(--js-seerr-border); }',
@@ -116,7 +114,7 @@
       '#js-seerr-nav .navMenuOptionText { margin-left:0 !important; }',
       '#js-seerr-nav .navMenuOptionIcon { margin-right:1.15rem; }',
       '@keyframes jsSeerrToastIn { to { transform:translateY(0); opacity:1; } }',
-      '@media (max-width: 900px) { #js-seerr-discover.page { padding: 1rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } .js-seerr-comingSoonSection { padding:0 1rem; } .js-seerr-comingSoonCard { flex-basis:140px; max-width:140px; } }'
+      '@media (max-width: 900px) { #js-seerr-discover.page { padding: 1rem; } .js-seerr-actions { width:100%; } .js-seerr-actions .js-seerr-pill { flex:1 1 auto; } .js-seerr-comingSoonCard { flex-basis:140px; max-width:140px; } }'
     ].join('\n');
     document.head.appendChild(style);
   }
@@ -909,11 +907,11 @@
     if (existing?.dataset.signature === signature && isComingSoonPlaced(container, existing, placement)) return;
 
     section.id = 'js-seerr-coming-soon';
-    section.className = 'js-seerr-comingSoonSection';
+    section.className = 'js-seerr-comingSoonSection verticalSection';
     section.dataset.signature = signature;
     section.innerHTML = [
-      '<div class="js-seerr-comingSoonHeader sectionTitleContainer">',
-      '  <h2 class="js-seerr-comingSoonTitle sectionTitle">Coming Soon</h2>',
+      '<div class="js-seerr-comingSoonHeader sectionTitleContainer sectionTitleContainer-cards padded-left">',
+      '  <h2 class="js-seerr-comingSoonTitle sectionTitle sectionTitle-cards">Coming Soon</h2>',
       '</div>',
       '<div class="js-seerr-comingSoonRow scrollX hiddenScrollX">',
       comingSoonItems.map(renderComingSoonCard).join(''),

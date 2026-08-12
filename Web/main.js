@@ -5,6 +5,7 @@
   const API = '/plugins/JellySeerr';
   const DISCOVER_ROUTE = '#/home.html?jellyseerr=discover';
   const Status = { UNKNOWN: 1, PENDING: 2, PROCESSING: 3, PARTIAL: 4, AVAILABLE: 5 };
+  const RequestStatus = { PENDING: 1, APPROVED: 2 };
   const TRACKED_REQUESTS_KEY = 'jellyseerr_tracked_requests';
   const LATEST_LIBRARY_ITEMS_KEY = 'jellyseerr_latest_library_items';
   const REQUEST_POLL_MS = 120000;
@@ -229,7 +230,7 @@
     const token = getToken();
     if (!token) throw new Error('Missing Jellyfin token');
     const headers = { 'X-MediaBrowser-Token': token, ...opts.headers };
-    const resp = await fetch(path, { ...opts, headers });
+    const resp = await fetch(path, { cache: 'no-store', ...opts, headers });
     if (!resp.ok) {
       const text = await resp.text();
       let message = text;
@@ -420,7 +421,24 @@
     return 'https://image.tmdb.org/t/p/' + size + path;
   }
 
-  function statusInfo(status, mediaType) {
+  function getActiveRequest(data) {
+    const requests = data?.mediaInfo?.requests;
+    if (!Array.isArray(requests)) return null;
+    return requests.find(request =>
+      request?.status === RequestStatus.PENDING || request?.status === RequestStatus.APPROVED
+    ) || null;
+  }
+
+  function statusInfo(status, mediaType, requestStatus) {
+    const hasActiveRequest = requestStatus === RequestStatus.PENDING
+      || requestStatus === RequestStatus.APPROVED;
+
+    if (hasActiveRequest && status !== Status.AVAILABLE) {
+      return mediaType === 'tv'
+        ? { label: 'Edit Request', color: '#ff9800', disabled: false }
+        : { label: 'Requested', color: '#ff9800', disabled: true };
+    }
+
     switch (status) {
       case Status.AVAILABLE:
         return { label: 'In Library', color: '#4caf50', disabled: true };
@@ -440,13 +458,17 @@
     }
   }
 
+  function requestStatusInfo(data, mediaType) {
+    return statusInfo(data?.mediaInfo?.status, mediaType, getActiveRequest(data)?.status);
+  }
+
   function getFirstRequestId(data) {
-    const request = data?.mediaInfo?.requests?.[0];
+    const request = getActiveRequest(data);
     return request ? request.id : null;
   }
 
   function getRequestedSeasonNumbers(data) {
-    const request = data?.mediaInfo?.requests?.[0];
+    const request = getActiveRequest(data);
     const seasons = request?.seasons;
     if (!Array.isArray(seasons)) return [];
 
@@ -1335,7 +1357,7 @@
   }
 
   function applyDiscoverRequestState(button, mediaType, data) {
-    const info = statusInfo(data?.mediaInfo?.status, mediaType);
+    const info = requestStatusInfo(data, mediaType);
     button.textContent = info.label;
     button.style.background = info.color;
     button.disabled = info.disabled;
@@ -1487,7 +1509,7 @@
     const title = normalizeTitle(item);
     const year = normalizeYear(item);
     const poster = normalizePoster(item, 'w342');
-    const info = statusInfo(item?.mediaInfo?.status, mediaType);
+    const info = requestStatusInfo(item, mediaType);
 
     return [
       '<article class="js-seerr-card">',
@@ -1609,10 +1631,9 @@
             button.disabled = false;
           }
         } else {
-          const reset = statusInfo(data?.mediaInfo?.status, mediaType);
-          button.textContent = reset.label;
-          button.style.background = reset.color;
-          button.disabled = reset.disabled;
+          button.textContent = 'Request failed - Retry';
+          button.style.background = '#e53935';
+          button.disabled = false;
         }
 
         discoverRequestInFlight = false;
